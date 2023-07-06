@@ -20,65 +20,50 @@ const validNoDeclaration: string = `
 `;
 
 ruleTester.run('declaration-in-describe', describeDeclarationRule, {
-  valid: [validNoDeclarationNoIt, validNoDeclaration],
+  valid: [
+    // No declaration
+    'describe("test-describe", () => {});',
+    // Declaration within it
+    `
+      describe('test-describe', () => {
+        it('test-it', () => {
+          let a = {};
+        });
+      });
+    `,
+    // Multi level describe declaration within it
+    `
+      describe('test-describe', () => {
+        describe('test-describe', () => {
+          it('test-it', () => {
+            let a = {};
+          });
+        });
+      });
+    `,
+  ],
   invalid: [
     {
       code: `
-        describe('test-describe', () => {
-          let a = {};
-        });
-      `,
-      errors: [{ messageId: 'declarationInDescribe' }],
-    },
-    {
-      code: `
-        describe('test-describe', () => {
-          const a = {};
-        });
-      `,
-      errors: [{ messageId: 'declarationInDescribe' }],
-    },
-    {
-      code: `
-        describe('test-describe', () => {
-          var a = {};
-        });
-      `,
-      errors: [{ messageId: 'declarationInDescribe' }],
-    },
-    {
-      code: `
-        describe('test-describe', () => {
-          var a = {};
-          var b = {};
-        });
-      `,
-      errors: [
-        { messageId: 'declarationInDescribe' },
-        { messageId: 'declarationInDescribe' },
-      ],
-    },
-    {
-      code: `
-        describe('test-describe', () => {
-          var a = {};
-
-          it('test-it1', () => {});
-        });
-      `,
+describe('test-describe-let', () => {
+  let a = {};
+});
+`,
       errors: [
         {
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeIt',
+              messageId: 'declarationInDescribeBeforeAfter',
               output: `
-        describe('test-describe', () => {
-          
-
-          it('test-it1', () => { var a = {}; });
-        });
-      `,
+describe('test-describe-let', () => {
+  let a;
+beforeEach(() => { a = {}; });
+afterEach(() => {
+a = null;
+});
+});
+`,
             },
           ],
         },
@@ -86,16 +71,151 @@ ruleTester.run('declaration-in-describe', describeDeclarationRule, {
     },
     {
       code: `
-        describe('test-describe', () => {
-          var a = {};
+describe('test-describe-const', () => {
+  const a = {};
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-const', () => {
+  const a;
+beforeEach(() => { a = {}; });
+afterEach(() => {
+a = null;
+});
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-var', () => {
+  var a = {};
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-var', () => {
+  var a;
+beforeEach(() => { a = {}; });
+afterEach(() => {
+a = null;
+});
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-many-declaration', () => {
+  var a = {};
+  var b = {};
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-many-declaration', () => {
+  var a;
+  var b = {};
+beforeEach(() => { a = {}; });
+afterEach(() => {
+a = null;
+});
+});
+`,
+            },
+          ],
+        },
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-many-declaration', () => {
+  var a = {};
+  var b;
+beforeEach(() => { b = {}; });
+afterEach(() => {
+b = null;
+});
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-it', () => {
+  var a = {};
+  it('test-it1', () => {});
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeIt',
+              output: `
+describe('test-describe-it', () => {
+  
+  it('test-it1', () => { var a = {}; });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-it', () => {
+  var a;
+beforeEach(() => { a = {}; });
+afterEach(() => {
+a = null;
+});
+  it('test-it1', () => {});
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-many-it', () => {
+  var a = {};
 
-          it('test-it1', () => {});
-          it('test-it2', () => {
-            someCode();
-            someMoreCode();
-          });
-        });
-      `,
+  it('test-it1', () => {});
+  it('test-it2', () => {
+    someCode();
+    someMoreCode();
+  });
+});
+`,
       errors: [
         {
           messageId: 'declarationInDescribe',
@@ -103,17 +223,35 @@ ruleTester.run('declaration-in-describe', describeDeclarationRule, {
             {
               messageId: 'declarationInDescribeManyIt',
               output: `
-        describe('test-describe', () => {
-          
+describe('test-describe-many-it', () => {
+  
 
-          it('test-it1', () => { var a = {}; });
-          it('test-it2', () => {
-            var a = {};
+  it('test-it1', () => { var a = {}; });
+  it('test-it2', () => {
+    var a = {};
 someCode();
-            someMoreCode();
-          });
-        });
-      `,
+    someMoreCode();
+  });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-many-it', () => {
+  var a;
+beforeEach(() => { a = {}; });
+afterEach(() => {
+a = null;
+});
+
+  it('test-it1', () => {});
+  it('test-it2', () => {
+    someCode();
+    someMoreCode();
+  });
+});
+`,
             },
           ],
         },
@@ -121,12 +259,12 @@ someCode();
     },
     {
       code: `
-        describe('test-describe', () => {
-          var a, b = {};
+describe('test-describe-many-same-line', () => {
+  var a, b = {};
 
-          it('test-it1', () => {});
-        });
-      `,
+  it('test-it1', () => {});
+});
+`,
       errors: [
         {
           messageId: 'declarationInDescribe',
@@ -134,12 +272,62 @@ someCode();
             {
               messageId: 'declarationInDescribeIt',
               output: `
-        describe('test-describe', () => {
-          
+describe('test-describe-many-same-line', () => {
+  
 
-          it('test-it1', () => { var a, b = {}; });
-        });
-      `,
+  it('test-it1', () => { var a, b = {}; });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-many-same-line', () => {
+  var a, b;
+beforeEach(() => { b = {}; });
+afterEach(() => {
+a = null;
+b = null;
+});
+
+  it('test-it1', () => {});
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-multi-level-it', () => {
+  var a, b = {};
+
+  describe('test-describe-2', () => {
+    it('test-it1', () => {});
+  });
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-multi-level-it', () => {
+  var a, b;
+beforeEach(() => { b = {}; });
+afterEach(() => {
+a = null;
+b = null;
+});
+
+  describe('test-describe-2', () => {
+    it('test-it1', () => {});
+  });
+});
+`,
             },
           ],
         },

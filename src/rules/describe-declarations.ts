@@ -23,36 +23,147 @@ type MessageIds =
 function* fixMoveToIt(
   context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
   fixer: TSESLint.RuleFixer,
-  node: TSESTree.Node,
+  node: TSESTree.VariableDeclaration,
   siblingIts: TSESTree.Node[]
 ): IterableIterator<TSESLint.RuleFix> {
   const declaration = context.getSourceCode().getText(node);
   for (const sibling of siblingIts) {
-    const call = sibling as TSESTree.CallExpression;
-
-    if (call.arguments.length < 2) continue;
-    const fn = call.arguments[1] as TSESTree.FunctionLike;
-
-    if (!fn.body) continue;
-
-    if (fn.body.type !== AST_NODE_TYPES.BlockStatement) {
-      yield fixer.replaceText(
-        fn.body,
-        '{ ' +
-          context.getSourceCode().getText(fn.body) +
-          ';\n' +
-          declaration +
-          ' }'
-      );
-    } else {
-      if (fn.body.body.length === 0) {
-        yield fixer.replaceText(fn.body, '{ ' + declaration + ' }');
-      } else {
-        yield fixer.insertTextBefore(fn.body.body[0], declaration + '\n');
-      }
+    const fix = prependCall(context, fixer, sibling, declaration);
+    if (fix) {
+      yield fix;
     }
   }
   yield fixer.remove(node);
+}
+
+/**
+ * Fixes the declaration by moving initialization to the "beforeEach" and removing to "afterEach" calls.
+ * @param context Rule context.
+ * @param fixer Fixer for the problem.
+ * @param node Node to work on.
+ * @param describe Describe node.
+ * @param siblingBefore Sibling beforeEach node, if any.
+ * @param siblingAfter Sibling afterEach node, if any.
+ * @yields Fixes for the problem.
+ */
+function* fixMoveToBeforeAfter(
+  context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
+  fixer: TSESLint.RuleFixer,
+  node: TSESTree.VariableDeclaration,
+  describe: TSESTree.CallExpression,
+  siblingBefore: TSESTree.Node | undefined,
+  siblingAfter: TSESTree.Node | undefined
+): IterableIterator<TSESLint.RuleFix> {
+  const initialization =
+    node.declarations
+      .filter((f) => f.init)
+      .map((m) => context.getSourceCode().getText(m))
+      .join(', ') + ';';
+
+  const release =
+    node.declarations
+      .filter((f) => 'name' in f.id)
+      .map((m) => m.id['name'] + ' = null;')
+      .join('\n') + '\n';
+
+  if (siblingBefore) {
+    const fix = prependCall(context, fixer, siblingBefore, initialization);
+    if (fix) {
+      yield fix;
+    }
+  } else {
+    const fix = prependCall(
+      context,
+      fixer,
+      describe,
+      'beforeEach(() => { ' + initialization + ' });',
+      (node) => node.type === AST_NODE_TYPES.VariableDeclaration
+    );
+    if (fix) {
+      yield fix;
+    }
+  }
+
+  if (siblingAfter) {
+    const fix = prependCall(context, fixer, siblingAfter, release);
+    if (fix) {
+      yield fix;
+    }
+  } else {
+    const fix = prependCall(
+      context,
+      fixer,
+      describe,
+      'afterEach(() => {\n' + release + '});',
+      (node) => node.type === AST_NODE_TYPES.VariableDeclaration
+    );
+    if (fix) {
+      yield fix;
+    }
+  }
+
+  yield fixer.replaceText(
+    node,
+    node.kind +
+      ' ' +
+      node.declarations
+        .filter((f) => 'name' in f.id)
+        .map((m) => m.id['name'])
+        .join(', ') +
+      ';'
+  );
+}
+
+/**
+ * Prepend content to a call.
+ * @param context Rule context.
+ * @param fixer Fixer for the problem.
+ * @param node Node to work on.
+ * @param content Content to prepend.
+ * @param skipPredicate Predicate to find the node after insertion should happen.
+ * @returns Fix for the prepend.
+ */
+function prependCall(
+  context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
+  fixer: TSESLint.RuleFixer,
+  node: TSESTree.Node,
+  content: string,
+  skipPredicate?: (node: TSESTree.Node) => boolean
+): TSESLint.RuleFix | undefined {
+  const call = node as TSESTree.CallExpression;
+
+  if (call.arguments.length < 1) return undefined;
+  const fn = call.arguments[call.arguments.length - 1] as TSESTree.FunctionLike;
+
+  if (!fn.body) return undefined;
+
+  if (fn.body.type !== AST_NODE_TYPES.BlockStatement) {
+    return fixer.replaceText(
+      fn.body,
+      '{ ' + context.getSourceCode().getText(fn.body) + ';\n' + content + ' }'
+    );
+  } else {
+    if (fn.body.body.length === 0) {
+      return fixer.replaceText(fn.body, '{ ' + content + ' }');
+    } else {
+      let afterNode;
+      if (skipPredicate) {
+        for (const n of fn.body.body) {
+          if (skipPredicate(n)) {
+            afterNode = n;
+          } else {
+            break;
+          }
+        }
+      }
+
+      if (afterNode) {
+        return fixer.insertTextAfter(afterNode, '\n' + content);
+      } else {
+        return fixer.insertTextBefore(fn.body.body[0], content + '\n');
+      }
+    }
+  }
 }
 
 export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
@@ -72,7 +183,10 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
   },
   create: (context) => ({
     VariableDeclaration: (node): void => {
-      const call = closestNodeOfType(node, AST_NODE_TYPES.CallExpression);
+      const call = closestNodeOfType(
+        node,
+        AST_NODE_TYPES.CallExpression
+      ) as TSESTree.CallExpression;
       if (
         call &&
         'callee' in call &&
@@ -110,10 +224,18 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
             fix: (fixer) => fixMoveToIt(context, fixer, node, siblingIts),
           });
         }
-        // suggestions.push({
-        //   messageId: 'declarationInDescribeBeforeAfter',
-        //   fix: fixer => { throw new Error('NotImplemented'); }
-        // });
+        suggestions.push({
+          messageId: 'declarationInDescribeBeforeAfter',
+          fix: (fixer) =>
+            fixMoveToBeforeAfter(
+              context,
+              fixer,
+              node,
+              call,
+              siblingBefore[0],
+              siblingAfter[0]
+            ),
+        });
 
         return context.report({
           node: node,
