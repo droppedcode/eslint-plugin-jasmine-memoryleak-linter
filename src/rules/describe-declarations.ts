@@ -10,7 +10,8 @@ type MessageIds =
   | 'declarationInDescribe'
   | 'declarationInDescribeIt'
   | 'declarationInDescribeBeforeAfter'
-  | 'declarationInDescribeManyIt';
+  | 'declarationInDescribeManyIt'
+  | 'declarationInDescribeBeforeAfterConst';
 
 /**
  * Fixes the declaration by moving it to the "it" calls.
@@ -28,7 +29,13 @@ function* fixMoveToIt(
 ): IterableIterator<TSESLint.RuleFix> {
   const declaration = context.getSourceCode().getText(node);
   for (const sibling of siblingIts) {
-    const fix = prependCall(context, fixer, sibling, declaration);
+    const fix = insertToCall(
+      context,
+      fixer,
+      sibling,
+      declaration,
+      (node) => node.type === AST_NODE_TYPES.VariableDeclaration
+    );
     if (fix) {
       yield fix;
     }
@@ -60,19 +67,26 @@ function* fixMoveToBeforeAfter(
       .map((m) => context.getSourceCode().getText(m))
       .join(', ') + ';';
 
-  const release =
-    node.declarations
-      .filter((f) => 'name' in f.id)
-      .map((m) => m.id['name'] + ' = null;')
-      .join('\n') + '\n';
+  const release = node.declarations
+    .filter((f) => 'name' in f.id)
+    .map((m) => m.id['name'] + ' = null;')
+    .join('\n');
 
   if (siblingBefore) {
-    const fix = prependCall(context, fixer, siblingBefore, initialization);
+    const fix = insertToCall(
+      context,
+      fixer,
+      siblingBefore,
+      initialization,
+      (node) =>
+        node.type === AST_NODE_TYPES.ExpressionStatement &&
+        node.expression.type === AST_NODE_TYPES.AssignmentExpression
+    );
     if (fix) {
       yield fix;
     }
   } else {
-    const fix = prependCall(
+    const fix = insertToCall(
       context,
       fixer,
       describe,
@@ -85,16 +99,24 @@ function* fixMoveToBeforeAfter(
   }
 
   if (siblingAfter) {
-    const fix = prependCall(context, fixer, siblingAfter, release);
+    const fix = insertToCall(
+      context,
+      fixer,
+      siblingAfter,
+      release,
+      (node) =>
+        node.type === AST_NODE_TYPES.ExpressionStatement &&
+        node.expression.type === AST_NODE_TYPES.AssignmentExpression
+    );
     if (fix) {
       yield fix;
     }
   } else {
-    const fix = prependCall(
+    const fix = insertToCall(
       context,
       fixer,
       describe,
-      'afterEach(() => {\n' + release + '});',
+      'afterEach(() => { ' + release + ' });',
       (node) => node.type === AST_NODE_TYPES.VariableDeclaration
     );
     if (fix) {
@@ -104,7 +126,7 @@ function* fixMoveToBeforeAfter(
 
   yield fixer.replaceText(
     node,
-    node.kind +
+    (node.kind === 'const' ? 'let' : node.kind) +
       ' ' +
       node.declarations
         .filter((f) => 'name' in f.id)
@@ -123,7 +145,7 @@ function* fixMoveToBeforeAfter(
  * @param skipPredicate Predicate to find the node after insertion should happen.
  * @returns Fix for the prepend.
  */
-function prependCall(
+function insertToCall(
   context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
   fixer: TSESLint.RuleFixer,
   node: TSESTree.Node,
@@ -176,6 +198,8 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
       declarationInDescribeManyIt: 'Move declaration to each "it".',
       declarationInDescribeBeforeAfter:
         'Initialize values in "beforeEach" and delete in "afterEach".',
+      declarationInDescribeBeforeAfterConst:
+        'Change declaration to let and initialize values in "beforeEach" and delete in "afterEach".',
     },
     fixable: 'code',
     hasSuggestions: true,
@@ -183,6 +207,8 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
   },
   create: (context) => ({
     VariableDeclaration: (node): void => {
+      if (!node.declarations.some((s) => s.init)) return;
+
       const call = closestNodeOfType(
         node,
         AST_NODE_TYPES.CallExpression
@@ -212,11 +238,14 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
         );
 
         const suggestions: ReportSuggestionArray<MessageIds> = [];
+        let fix: TSESLint.ReportFixFunction | undefined;
 
         if (siblingIts.length === 1) {
+          fix = (fixer): IterableIterator<TSESLint.RuleFix> =>
+            fixMoveToIt(context, fixer, node, siblingIts);
           suggestions.push({
             messageId: 'declarationInDescribeIt',
-            fix: (fixer) => fixMoveToIt(context, fixer, node, siblingIts),
+            fix: fix,
           });
         } else if (siblingIts.length > 1) {
           suggestions.push({
@@ -224,24 +253,47 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
             fix: (fixer) => fixMoveToIt(context, fixer, node, siblingIts),
           });
         }
-        suggestions.push({
-          messageId: 'declarationInDescribeBeforeAfter',
-          fix: (fixer) =>
-            fixMoveToBeforeAfter(
-              context,
-              fixer,
-              node,
-              call,
-              siblingBefore[0],
-              siblingAfter[0]
-            ),
-        });
 
-        return context.report({
+        if (node.kind !== 'const') {
+          suggestions.push({
+            messageId: 'declarationInDescribeBeforeAfter',
+            fix: (fixer) =>
+              fixMoveToBeforeAfter(
+                context,
+                fixer,
+                node,
+                call,
+                siblingBefore[0],
+                siblingAfter[0]
+              ),
+          });
+        } else {
+          suggestions.push({
+            messageId: 'declarationInDescribeBeforeAfterConst',
+            fix: (fixer) =>
+              fixMoveToBeforeAfter(
+                context,
+                fixer,
+                node,
+                call,
+                siblingBefore[0],
+                siblingAfter[0]
+              ),
+          });
+        }
+
+        const report = {
           node: node,
-          messageId: 'declarationInDescribe',
+          messageId: <MessageIds>'declarationInDescribe',
           suggest: suggestions,
-        });
+        };
+
+        fix ??= suggestions[suggestions.length - 1].fix;
+        if (fix) {
+          report['fix'] = fix;
+        }
+
+        return context.report(report);
       }
 
       return;

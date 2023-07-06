@@ -49,6 +49,13 @@ describe('test-describe-let', () => {
   let a = {};
 });
 `,
+      output: `
+describe('test-describe-let', () => {
+  let a;
+beforeEach(() => { a = {}; });
+afterEach(() => { a = null; });
+});
+`,
       errors: [
         {
           messageId: 'declarationInDescribe',
@@ -59,9 +66,7 @@ describe('test-describe-let', () => {
 describe('test-describe-let', () => {
   let a;
 beforeEach(() => { a = {}; });
-afterEach(() => {
-a = null;
-});
+afterEach(() => { a = null; });
 });
 `,
             },
@@ -75,19 +80,24 @@ describe('test-describe-const', () => {
   const a = {};
 });
 `,
+      output: `
+describe('test-describe-const', () => {
+  let a;
+beforeEach(() => { a = {}; });
+afterEach(() => { a = null; });
+});
+`,
       errors: [
         {
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterConst',
               output: `
 describe('test-describe-const', () => {
-  const a;
+  let a;
 beforeEach(() => { a = {}; });
-afterEach(() => {
-a = null;
-});
+afterEach(() => { a = null; });
 });
 `,
             },
@@ -101,6 +111,13 @@ describe('test-describe-var', () => {
   var a = {};
 });
 `,
+      output: `
+describe('test-describe-var', () => {
+  var a;
+beforeEach(() => { a = {}; });
+afterEach(() => { a = null; });
+});
+`,
       errors: [
         {
           messageId: 'declarationInDescribe',
@@ -111,9 +128,7 @@ describe('test-describe-var', () => {
 describe('test-describe-var', () => {
   var a;
 beforeEach(() => { a = {}; });
-afterEach(() => {
-a = null;
-});
+afterEach(() => { a = null; });
 });
 `,
             },
@@ -128,6 +143,14 @@ describe('test-describe-many-declaration', () => {
   var b = {};
 });
 `,
+      output: `
+describe('test-describe-many-declaration', () => {
+  var a;
+  var b = {};
+beforeEach(() => { a = {}; });
+afterEach(() => { a = null; });
+});
+`,
       errors: [
         {
           messageId: 'declarationInDescribe',
@@ -139,9 +162,7 @@ describe('test-describe-many-declaration', () => {
   var a;
   var b = {};
 beforeEach(() => { a = {}; });
-afterEach(() => {
-a = null;
-});
+afterEach(() => { a = null; });
 });
 `,
             },
@@ -157,9 +178,7 @@ describe('test-describe-many-declaration', () => {
   var a = {};
   var b;
 beforeEach(() => { b = {}; });
-afterEach(() => {
-b = null;
-});
+afterEach(() => { b = null; });
 });
 `,
             },
@@ -172,6 +191,12 @@ b = null;
 describe('test-describe-it', () => {
   var a = {};
   it('test-it1', () => {});
+});
+`,
+      output: `
+describe('test-describe-it', () => {
+  
+  it('test-it1', () => { var a = {}; });
 });
 `,
       errors: [
@@ -193,9 +218,7 @@ describe('test-describe-it', () => {
 describe('test-describe-it', () => {
   var a;
 beforeEach(() => { a = {}; });
-afterEach(() => {
-a = null;
-});
+afterEach(() => { a = null; });
   it('test-it1', () => {});
 });
 `,
@@ -208,6 +231,19 @@ a = null;
       code: `
 describe('test-describe-many-it', () => {
   var a = {};
+
+  it('test-it1', () => {});
+  it('test-it2', () => {
+    someCode();
+    someMoreCode();
+  });
+});
+`,
+      output: `
+describe('test-describe-many-it', () => {
+  var a;
+beforeEach(() => { a = {}; });
+afterEach(() => { a = null; });
 
   it('test-it1', () => {});
   it('test-it2', () => {
@@ -241,9 +277,7 @@ someCode();
 describe('test-describe-many-it', () => {
   var a;
 beforeEach(() => { a = {}; });
-afterEach(() => {
-a = null;
-});
+afterEach(() => { a = null; });
 
   it('test-it1', () => {});
   it('test-it2', () => {
@@ -263,6 +297,13 @@ describe('test-describe-many-same-line', () => {
   var a, b = {};
 
   it('test-it1', () => {});
+});
+`,
+      output: `
+describe('test-describe-many-same-line', () => {
+  
+
+  it('test-it1', () => { var a, b = {}; });
 });
 `,
       errors: [
@@ -285,10 +326,8 @@ describe('test-describe-many-same-line', () => {
 describe('test-describe-many-same-line', () => {
   var a, b;
 beforeEach(() => { b = {}; });
-afterEach(() => {
-a = null;
-b = null;
-});
+afterEach(() => { a = null;
+b = null; });
 
   it('test-it1', () => {});
 });
@@ -308,6 +347,18 @@ describe('test-describe-multi-level-it', () => {
   });
 });
 `,
+      output: `
+describe('test-describe-multi-level-it', () => {
+  var a, b;
+beforeEach(() => { b = {}; });
+afterEach(() => { a = null;
+b = null; });
+
+  describe('test-describe-2', () => {
+    it('test-it1', () => {});
+  });
+});
+`,
       errors: [
         {
           messageId: 'declarationInDescribe',
@@ -318,14 +369,52 @@ describe('test-describe-multi-level-it', () => {
 describe('test-describe-multi-level-it', () => {
   var a, b;
 beforeEach(() => { b = {}; });
-afterEach(() => {
-a = null;
-b = null;
-});
+afterEach(() => { a = null;
+b = null; });
 
   describe('test-describe-2', () => {
     it('test-it1', () => {});
   });
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-declaration-existing', () => {
+  var a;
+  var b = {};
+  beforeEach(() => { a = {}; });
+  afterEach(() => { a = null; });
+});
+`,
+      output: `
+describe('test-describe-declaration-existing', () => {
+  var a;
+  var b;
+  beforeEach(() => { a = {};
+b = {}; });
+  afterEach(() => { a = null;
+b = null; });
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfter',
+              output: `
+describe('test-describe-declaration-existing', () => {
+  var a;
+  var b;
+  beforeEach(() => { a = {};
+b = {}; });
+  afterEach(() => { a = null;
+b = null; });
 });
 `,
             },

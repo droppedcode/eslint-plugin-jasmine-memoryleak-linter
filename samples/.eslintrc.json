@@ -4,7 +4,7 @@
     "browser": true,
     "es2021": true
   },
-  "extends": "standard-with-typescript",
+  "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "project": ["./tsconfig.json"],
     "tsconfigRootDir": "./",
@@ -13,7 +13,6 @@
   },
   "plugins": ["@droppedcode/eslint-plugin-jasmine-memoryleak-linter"],
   "rules": {
-    "@typescript-eslint/semi": "off",
     "@droppedcode/jasmine-memoryleak-linter/describe-declarations": "warn"
   }
 }

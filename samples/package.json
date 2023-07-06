@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "lint": "eslint ./src/** --max-warnings 0",
+    "lint:fix": "eslint ./src/** --fix",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
