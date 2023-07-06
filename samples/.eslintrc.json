@@ -1,0 +1,19 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": "standard-with-typescript",
+  "parserOptions": {
+    "project": ["./tsconfig.json"],
+    "tsconfigRootDir": "./",
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "plugins": ["@droppedcode/eslint-plugin-jasmine-memoryleak-linter"],
+  "rules": {
+    "@typescript-eslint/semi": "off",
+    "@droppedcode/jasmine-memoryleak-linter/describe-declarations": "warn"
+  }
+}

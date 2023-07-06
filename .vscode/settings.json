@@ -1,0 +1,12 @@
+{
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "eslint.validate": ["javascript", "typescript"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "eslint.workingDirectories": [
+    {
+      "mode": "location"
+    }
+  ]
+}

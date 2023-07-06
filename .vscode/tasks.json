@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "label": "debug",
+      "script": "jasmine",
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "type": "typescript",
+      "tsconfig": "tsconfig.debug.json",
+      "problemMatcher": ["$tsc"],
+      "group": {
+        "kind": "build"
+      }
+    }
+  ]
+}
