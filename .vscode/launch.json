@@ -7,13 +7,15 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Launch Current File",
-      "skipFiles": ["<node_internals>/**"],
-      "program": "${workspaceFolder}/tests/describe-declarations/",
-      "preLaunchTask": "tsc: build - tsconfig.test.json",
-      "outFiles": [
-        "${workspaceFolder}/test/**/*.js"
-      ]
+      "name": "Jest: current file",
+      //"env": { "NODE_ENV": "test" },
+      "program": "${workspaceFolder}/node_modules/.bin/jest",
+      "args": ["${fileBasenameNoExtension}", "--config", "jest.config.ts"],
+      "console": "integratedTerminal",
+      "disableOptimisticBPs": true,
+      "windows": {
+        "program": "${workspaceFolder}/node_modules/jest/bin/jest"
+      }
     }
   ]
 }

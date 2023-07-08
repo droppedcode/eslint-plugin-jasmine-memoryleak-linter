@@ -1,10 +1,13 @@
 import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
 import { ReportSuggestionArray } from '@typescript-eslint/utils/dist/ts-eslint';
 
+import { hasCleanup } from '../utils/common';
+import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
 import {
-  closestNodeOfType,
+  closestCallExpressionIfName,
+  isCallExpressionWithName,
   siblingNodesOfType,
-} from '../tools/node-extensions';
+} from '../utils/node-utils';
 
 type MessageIds =
   | 'declarationInDescribe'
@@ -25,11 +28,11 @@ function* fixMoveToIt(
   context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
   fixer: TSESLint.RuleFixer,
   node: TSESTree.VariableDeclaration,
-  siblingIts: TSESTree.Node[]
+  siblingIts: TSESTree.CallExpression[]
 ): IterableIterator<TSESLint.RuleFix> {
   const declaration = context.getSourceCode().getText(node);
   for (const sibling of siblingIts) {
-    const fix = insertToCall(
+    const fix = insertToCallLastFunctionArgument(
       context,
       fixer,
       sibling,
@@ -50,7 +53,7 @@ function* fixMoveToIt(
  * @param node Node to work on.
  * @param describe Describe node.
  * @param siblingBefore Sibling beforeEach node, if any.
- * @param siblingAfter Sibling afterEach node, if any.
+ * @param siblingAfters Sibling afterEach nodes, if any.
  * @yields Fixes for the problem.
  */
 function* fixMoveToBeforeAfter(
@@ -58,8 +61,8 @@ function* fixMoveToBeforeAfter(
   fixer: TSESLint.RuleFixer,
   node: TSESTree.VariableDeclaration,
   describe: TSESTree.CallExpression,
-  siblingBefore: TSESTree.Node | undefined,
-  siblingAfter: TSESTree.Node | undefined
+  siblingBefore: TSESTree.CallExpression | undefined,
+  siblingAfters: TSESTree.CallExpression[]
 ): IterableIterator<TSESLint.RuleFix> {
   const initialization =
     node.declarations
@@ -67,13 +70,13 @@ function* fixMoveToBeforeAfter(
       .map((m) => context.getSourceCode().getText(m))
       .join(', ') + ';';
 
-  const release = node.declarations
-    .filter((f) => 'name' in f.id)
-    .map((m) => m.id['name'] + ' = null;')
+  const cleanup = node.declarations
+    .filter((f) => 'name' in f.id && !hasCleanup(siblingAfters, f.id['name']))
+    .map((m) => m.id['name'] + ' = undefined;')
     .join('\n');
 
   if (siblingBefore) {
-    const fix = insertToCall(
+    const fix = insertToCallLastFunctionArgument(
       context,
       fixer,
       siblingBefore,
@@ -86,7 +89,7 @@ function* fixMoveToBeforeAfter(
       yield fix;
     }
   } else {
-    const fix = insertToCall(
+    const fix = insertToCallLastFunctionArgument(
       context,
       fixer,
       describe,
@@ -98,29 +101,32 @@ function* fixMoveToBeforeAfter(
     }
   }
 
-  if (siblingAfter) {
-    const fix = insertToCall(
-      context,
-      fixer,
-      siblingAfter,
-      release,
-      (node) =>
-        node.type === AST_NODE_TYPES.ExpressionStatement &&
-        node.expression.type === AST_NODE_TYPES.AssignmentExpression
-    );
-    if (fix) {
-      yield fix;
-    }
-  } else {
-    const fix = insertToCall(
-      context,
-      fixer,
-      describe,
-      'afterEach(() => { ' + release + ' });',
-      (node) => node.type === AST_NODE_TYPES.VariableDeclaration
-    );
-    if (fix) {
-      yield fix;
+  if (cleanup.length) {
+    if (siblingAfters.length) {
+      const fix = insertToCallLastFunctionArgument(
+        context,
+        fixer,
+        siblingAfters[siblingAfters.length - 1],
+        cleanup,
+        () => true
+      );
+      if (fix) {
+        yield fix;
+      }
+    } else {
+      const fix = insertToCallLastFunctionArgument(
+        context,
+        fixer,
+        describe,
+        'afterEach(() => { ' + cleanup + ' });',
+        (node) =>
+          node.type === AST_NODE_TYPES.VariableDeclaration ||
+          (node.type === AST_NODE_TYPES.ExpressionStatement &&
+            isCallExpressionWithName(node.expression, 'beforeEach'))
+      );
+      if (fix) {
+        yield fix;
+      }
     }
   }
 
@@ -136,58 +142,7 @@ function* fixMoveToBeforeAfter(
   );
 }
 
-/**
- * Prepend content to a call.
- * @param context Rule context.
- * @param fixer Fixer for the problem.
- * @param node Node to work on.
- * @param content Content to prepend.
- * @param skipPredicate Predicate to find the node after insertion should happen.
- * @returns Fix for the prepend.
- */
-function insertToCall(
-  context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
-  fixer: TSESLint.RuleFixer,
-  node: TSESTree.Node,
-  content: string,
-  skipPredicate?: (node: TSESTree.Node) => boolean
-): TSESLint.RuleFix | undefined {
-  const call = node as TSESTree.CallExpression;
-
-  if (call.arguments.length < 1) return undefined;
-  const fn = call.arguments[call.arguments.length - 1] as TSESTree.FunctionLike;
-
-  if (!fn.body) return undefined;
-
-  if (fn.body.type !== AST_NODE_TYPES.BlockStatement) {
-    return fixer.replaceText(
-      fn.body,
-      '{ ' + context.getSourceCode().getText(fn.body) + ';\n' + content + ' }'
-    );
-  } else {
-    if (fn.body.body.length === 0) {
-      return fixer.replaceText(fn.body, '{ ' + content + ' }');
-    } else {
-      let afterNode;
-      if (skipPredicate) {
-        for (const n of fn.body.body) {
-          if (skipPredicate(n)) {
-            afterNode = n;
-          } else {
-            break;
-          }
-        }
-      }
-
-      if (afterNode) {
-        return fixer.insertTextAfter(afterNode, '\n' + content);
-      } else {
-        return fixer.insertTextBefore(fn.body.body[0], content + '\n');
-      }
-    }
-  }
-}
-
+// TODO: add options to skip eg. const
 export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
   defaultOptions: [],
   meta: {
@@ -209,94 +164,81 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
     VariableDeclaration: (node): void => {
       if (!node.declarations.some((s) => s.init)) return;
 
-      const call = closestNodeOfType(
+      const call = closestCallExpressionIfName(node, 'describe');
+
+      if (!call) return;
+
+      const siblingCalls = siblingNodesOfType(
         node,
-        AST_NODE_TYPES.CallExpression
-      ) as TSESTree.CallExpression;
-      if (
-        call &&
-        'callee' in call &&
-        'name' in call.callee &&
-        call.callee.name === 'describe'
-      ) {
-        const siblingCalls = siblingNodesOfType(
-          node,
-          AST_NODE_TYPES.ExpressionStatement
-        ).map((m) => m['expression'] as TSESTree.Node);
-        const siblingIts = siblingCalls.filter(
-          (f) => 'callee' in f && 'name' in f.callee && f.callee.name === 'it'
-        );
-        const siblingBefore = siblingCalls.filter(
-          (f) =>
-            'callee' in f &&
-            'name' in f.callee &&
-            f.callee.name === 'beforeEach'
-        );
-        const siblingAfter = siblingCalls.filter(
-          (f) =>
-            'callee' in f && 'name' in f.callee && f.callee.name === 'afterEach'
-        );
+        AST_NODE_TYPES.ExpressionStatement
+      ).map((m) => m.expression);
+      const siblingIts = <TSESTree.CallExpression[]>(
+        siblingCalls.filter((f) => isCallExpressionWithName(f, 'it'))
+      );
+      const siblingBefore = <TSESTree.CallExpression[]>(
+        siblingCalls.filter((f) => isCallExpressionWithName(f, 'beforeEach'))
+      );
+      const siblingAfter = <TSESTree.CallExpression[]>(
+        siblingCalls.filter((f) => isCallExpressionWithName(f, 'afterEach'))
+      );
 
-        const suggestions: ReportSuggestionArray<MessageIds> = [];
-        let fix: TSESLint.ReportFixFunction | undefined;
+      const suggestions: ReportSuggestionArray<MessageIds> = [];
+      let fix: TSESLint.ReportFixFunction | undefined;
 
-        if (siblingIts.length === 1) {
-          fix = (fixer): IterableIterator<TSESLint.RuleFix> =>
-            fixMoveToIt(context, fixer, node, siblingIts);
-          suggestions.push({
-            messageId: 'declarationInDescribeIt',
-            fix: fix,
-          });
-        } else if (siblingIts.length > 1) {
-          suggestions.push({
-            messageId: 'declarationInDescribeManyIt',
-            fix: (fixer) => fixMoveToIt(context, fixer, node, siblingIts),
-          });
-        }
-
-        if (node.kind !== 'const') {
-          suggestions.push({
-            messageId: 'declarationInDescribeBeforeAfter',
-            fix: (fixer) =>
-              fixMoveToBeforeAfter(
-                context,
-                fixer,
-                node,
-                call,
-                siblingBefore[0],
-                siblingAfter[0]
-              ),
-          });
-        } else {
-          suggestions.push({
-            messageId: 'declarationInDescribeBeforeAfterConst',
-            fix: (fixer) =>
-              fixMoveToBeforeAfter(
-                context,
-                fixer,
-                node,
-                call,
-                siblingBefore[0],
-                siblingAfter[0]
-              ),
-          });
-        }
-
-        const report = {
-          node: node,
-          messageId: <MessageIds>'declarationInDescribe',
-          suggest: suggestions,
-        };
-
-        fix ??= suggestions[suggestions.length - 1].fix;
-        if (fix) {
-          report['fix'] = fix;
-        }
-
-        return context.report(report);
+      if (siblingIts.length === 1) {
+        fix = (fixer): IterableIterator<TSESLint.RuleFix> =>
+          fixMoveToIt(context, fixer, node, siblingIts);
+        suggestions.push({
+          messageId: 'declarationInDescribeIt',
+          fix: fix,
+        });
+      } else if (siblingIts.length > 1) {
+        suggestions.push({
+          messageId: 'declarationInDescribeManyIt',
+          fix: (fixer) => fixMoveToIt(context, fixer, node, siblingIts),
+        });
       }
 
-      return;
+      if (node.kind !== 'const') {
+        suggestions.push({
+          messageId: 'declarationInDescribeBeforeAfter',
+          fix: (fixer) =>
+            fixMoveToBeforeAfter(
+              context,
+              fixer,
+              node,
+              call,
+              siblingBefore[0],
+              siblingAfter
+            ),
+        });
+      } else {
+        suggestions.push({
+          messageId: 'declarationInDescribeBeforeAfterConst',
+          fix: (fixer) =>
+            fixMoveToBeforeAfter(
+              context,
+              fixer,
+              node,
+              call,
+              siblingBefore[0],
+              siblingAfter
+            ),
+        });
+      }
+
+      const report = {
+        node: node,
+        messageId: <MessageIds>'declarationInDescribe',
+        suggest: suggestions,
+      };
+
+      fix ??= suggestions[suggestions.length - 1].fix;
+      if (fix) {
+        report['fix'] = fix;
+      }
+
+      return context.report(report);
     },
   }),
 };
