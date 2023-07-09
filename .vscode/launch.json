@@ -12,6 +12,7 @@
       "program": "${workspaceFolder}/node_modules/.bin/jest",
       "args": ["${fileBasenameNoExtension}", "--config", "jest.config.ts"],
       "console": "integratedTerminal",
+      "preLaunchTask": "npm: build:test",
       "disableOptimisticBPs": true,
       "windows": {
         "program": "${workspaceFolder}/node_modules/jest/bin/jest"

@@ -1,5 +1,5 @@
 {
-  "name": "eslint-plugin-jasmine-memoryleak-linter",
+  "name": "@droppedcode/eslint-plugin-jasmine-memoryleak-linter",
   "version": "1.0.0",
   "description": "An ESLint extension to detect and fix Jasmine related memory leaks.",
   "main": "index.js",
@@ -14,10 +14,12 @@
     "test": "npm run build:test && jest",
     "pack": "npm run build && npm pack"
   },
+  "peerDependencies": {
+    "@typescript-eslint/utils": "^5.61.0"
+  },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^5.61.0",
     "@typescript-eslint/parser": "^5.61.0",
-    "@typescript-eslint/utils": "^5.61.0",
     "eslint": "^8.44.0",
     "eslint-config-prettier": "^8.8.0",
     "eslint-import-resolver-typescript": "^3.5.5",

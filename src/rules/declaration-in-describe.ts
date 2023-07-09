@@ -12,9 +12,11 @@ import {
 type MessageIds =
   | 'declarationInDescribe'
   | 'declarationInDescribeIt'
-  | 'declarationInDescribeBeforeAfter'
+  | 'declarationInDescribeBeforeAfterAll'
+  | 'declarationInDescribeBeforeAfterEach'
   | 'declarationInDescribeManyIt'
-  | 'declarationInDescribeBeforeAfterConst';
+  | 'declarationInDescribeBeforeAfterEachConst'
+  | 'declarationInDescribeBeforeAfterAllConst';
 
 /**
  * Fixes the declaration by moving it to the "it" calls.
@@ -54,6 +56,7 @@ function* fixMoveToIt(
  * @param describe Describe node.
  * @param siblingBefore Sibling beforeEach node, if any.
  * @param siblingAfters Sibling afterEach nodes, if any.
+ * @param suffix Suffix of the each commands.
  * @yields Fixes for the problem.
  */
 function* fixMoveToBeforeAfter(
@@ -62,7 +65,8 @@ function* fixMoveToBeforeAfter(
   node: TSESTree.VariableDeclaration,
   describe: TSESTree.CallExpression,
   siblingBefore: TSESTree.CallExpression | undefined,
-  siblingAfters: TSESTree.CallExpression[]
+  siblingAfters: TSESTree.CallExpression[],
+  suffix: string
 ): IterableIterator<TSESLint.RuleFix> {
   const initialization =
     node.declarations
@@ -93,8 +97,12 @@ function* fixMoveToBeforeAfter(
       context,
       fixer,
       describe,
-      'beforeEach(() => { ' + initialization + ' });',
-      (node) => node.type === AST_NODE_TYPES.VariableDeclaration
+      'before' + suffix + '(() => { ' + initialization + ' });',
+      (node) =>
+        node.type === AST_NODE_TYPES.VariableDeclaration ||
+        (node.type === AST_NODE_TYPES.ExpressionStatement &&
+          (isCallExpressionWithName(node.expression, 'beforeEach') ||
+            isCallExpressionWithName(node.expression, 'beforeAll')))
     );
     if (fix) {
       yield fix;
@@ -118,11 +126,14 @@ function* fixMoveToBeforeAfter(
         context,
         fixer,
         describe,
-        'afterEach(() => { ' + cleanup + ' });',
+        'after' + suffix + '(() => { ' + cleanup + ' });',
         (node) =>
           node.type === AST_NODE_TYPES.VariableDeclaration ||
           (node.type === AST_NODE_TYPES.ExpressionStatement &&
-            isCallExpressionWithName(node.expression, 'beforeEach'))
+            (isCallExpressionWithName(node.expression, 'beforeEach') ||
+              isCallExpressionWithName(node.expression, 'beforeAll') ||
+              isCallExpressionWithName(node.expression, 'afterEach') ||
+              isCallExpressionWithName(node.expression, 'afterAll')))
       );
       if (fix) {
         yield fix;
@@ -143,18 +154,22 @@ function* fixMoveToBeforeAfter(
 }
 
 // TODO: add options to skip eg. const
-export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
+export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
   defaultOptions: [],
   meta: {
     type: 'suggestion',
     messages: {
       declarationInDescribe: 'There are declarations in a describe.',
-      declarationInDescribeIt: 'Move declaration to the "it".',
-      declarationInDescribeManyIt: 'Move declaration to each "it".',
-      declarationInDescribeBeforeAfter:
-        'Initialize values in "beforeEach" and delete in "afterEach".',
-      declarationInDescribeBeforeAfterConst:
-        'Change declaration to let and initialize values in "beforeEach" and delete in "afterEach".',
+      declarationInDescribeIt: 'Move declarations to the "it".',
+      declarationInDescribeManyIt: 'Move declarations to each "it".',
+      declarationInDescribeBeforeAfterEach:
+        'Initialize values in "beforeEach" and unreference in "afterEach".',
+      declarationInDescribeBeforeAfterEachConst:
+        'Change declaration to let and initialize values in "beforeEach" and unreference in "afterEach".',
+      declarationInDescribeBeforeAfterAll:
+        'Initialize values in "beforeAll" and unreference in "afterAll".',
+      declarationInDescribeBeforeAfterAllConst:
+        'Change declaration to let and initialize values in "beforeAll" and unreference in "afterAll".',
     },
     fixable: 'code',
     hasSuggestions: true,
@@ -175,11 +190,17 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
       const siblingIts = <TSESTree.CallExpression[]>(
         siblingCalls.filter((f) => isCallExpressionWithName(f, 'it'))
       );
-      const siblingBefore = <TSESTree.CallExpression[]>(
+      const siblingBeforeEach = <TSESTree.CallExpression[]>(
         siblingCalls.filter((f) => isCallExpressionWithName(f, 'beforeEach'))
       );
-      const siblingAfter = <TSESTree.CallExpression[]>(
+      const siblingAfterEach = <TSESTree.CallExpression[]>(
         siblingCalls.filter((f) => isCallExpressionWithName(f, 'afterEach'))
+      );
+      const siblingBeforeAll = <TSESTree.CallExpression[]>(
+        siblingCalls.filter((f) => isCallExpressionWithName(f, 'beforeAll'))
+      );
+      const siblingAfterAll = <TSESTree.CallExpression[]>(
+        siblingCalls.filter((f) => isCallExpressionWithName(f, 'afterAll'))
       );
 
       const suggestions: ReportSuggestionArray<MessageIds> = [];
@@ -199,33 +220,25 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
         });
       }
 
-      if (node.kind !== 'const') {
-        suggestions.push({
-          messageId: 'declarationInDescribeBeforeAfter',
-          fix: (fixer) =>
-            fixMoveToBeforeAfter(
-              context,
-              fixer,
-              node,
-              call,
-              siblingBefore[0],
-              siblingAfter
-            ),
-        });
-      } else {
-        suggestions.push({
-          messageId: 'declarationInDescribeBeforeAfterConst',
-          fix: (fixer) =>
-            fixMoveToBeforeAfter(
-              context,
-              fixer,
-              node,
-              call,
-              siblingBefore[0],
-              siblingAfter
-            ),
-        });
-      }
+      addXSuggestion(
+        node,
+        suggestions,
+        context,
+        call,
+        siblingBeforeEach,
+        siblingAfterEach,
+        'Each'
+      );
+
+      addXSuggestion(
+        node,
+        suggestions,
+        context,
+        call,
+        siblingBeforeAll,
+        siblingAfterAll,
+        'All'
+      );
 
       const report = {
         node: node,
@@ -233,7 +246,7 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
         suggest: suggestions,
       };
 
-      fix ??= suggestions[suggestions.length - 1].fix;
+      fix ??= suggestions[suggestions.length - 2].fix;
       if (fix) {
         report['fix'] = fix;
       }
@@ -242,3 +255,56 @@ export const describeDeclarationRule: TSESLint.RuleModule<MessageIds> = {
     },
   }),
 };
+
+/**
+ * Add a suggestion for eachX fix.
+ * @param node Variable declaration.
+ * @param suggestions Suggestions to push to.
+ * @param context Rule context to use.
+ * @param describe The describe where the variable is declared.
+ * @param siblingBefore Sibling beforeX calls.
+ * @param siblingAfter Sibling afterX calls.
+ * @param suffix Function suffix to use.
+ */
+function addXSuggestion(
+  node: TSESTree.VariableDeclaration,
+  suggestions: TSESLint.ReportSuggestionArray<MessageIds>,
+  context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
+  // eslint-disable-next-line jsdoc/require-jsdoc
+  describe: TSESTree.CallExpression & { callee: { name: 'describe' } },
+  siblingBefore: TSESTree.CallExpression[],
+  siblingAfter: TSESTree.CallExpression[],
+  suffix: string
+): void {
+  if (node.kind !== 'const') {
+    suggestions.push({
+      messageId: <MessageIds>('declarationInDescribeBeforeAfter' + suffix),
+      fix: (fixer) =>
+        fixMoveToBeforeAfter(
+          context,
+          fixer,
+          node,
+          describe,
+          siblingBefore[0],
+          siblingAfter,
+          suffix
+        ),
+    });
+  } else {
+    suggestions.push({
+      messageId: <MessageIds>(
+        ('declarationInDescribeBeforeAfter' + suffix + 'Const')
+      ),
+      fix: (fixer) =>
+        fixMoveToBeforeAfter(
+          context,
+          fixer,
+          node,
+          describe,
+          siblingBefore[0],
+          siblingAfter,
+          suffix
+        ),
+    });
+  }
+}

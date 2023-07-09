@@ -1,12 +1,12 @@
 import { ESLintUtils } from '@typescript-eslint/utils';
 
-import { describeDeclarationRule } from './describe-declarations';
+import { declarationInDescribeRule } from './declaration-in-describe';
 
 const ruleTester = new ESLintUtils.RuleTester({
   parser: '@typescript-eslint/parser',
 });
 
-ruleTester.run('describe-declaration', describeDeclarationRule, {
+ruleTester.run('declaration-in-describe', declarationInDescribeRule, {
   valid: [
     // No declaration
     'describe("test-describe", () => {});',
@@ -48,12 +48,22 @@ afterEach(() => { a = undefined; });
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-let', () => {
   let a;
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-let', () => {
+  let a;
+beforeAll(() => { a = {}; });
+afterAll(() => { a = undefined; });
 });
 `,
             },
@@ -79,7 +89,7 @@ afterEach(() => { a = undefined; });
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfterConst',
+              messageId: 'declarationInDescribeBeforeAfterEachConst',
               output: `
 describe('test-describe-const', () => {
   let a;
@@ -88,6 +98,16 @@ afterEach(() => { a = undefined; });
 });
 `,
             },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAllConst',
+              output: `
+describe('test-describe-const', () => {
+  let a;
+beforeAll(() => { a = {}; });
+afterAll(() => { a = undefined; });
+});
+`,
+            },
           ],
         },
       ],
@@ -110,12 +130,22 @@ afterEach(() => { a = undefined; });
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-var', () => {
   var a;
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-var', () => {
+  var a;
+beforeAll(() => { a = {}; });
+afterAll(() => { a = undefined; });
 });
 `,
             },
@@ -143,7 +173,7 @@ afterEach(() => { a = undefined; });
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-many-declaration', () => {
   var a;
@@ -153,19 +183,41 @@ afterEach(() => { a = undefined; });
 });
 `,
             },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-many-declaration', () => {
+  var a;
+  var b = {};
+beforeAll(() => { a = {}; });
+afterAll(() => { a = undefined; });
+});
+`,
+            },
           ],
         },
         {
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-many-declaration', () => {
   var a = {};
   var b;
 beforeEach(() => { b = {}; });
 afterEach(() => { b = undefined; });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-many-declaration', () => {
+  var a = {};
+  var b;
+beforeAll(() => { b = {}; });
+afterAll(() => { b = undefined; });
 });
 `,
             },
@@ -200,12 +252,23 @@ describe('test-describe-it', () => {
 `,
             },
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-it', () => {
   var a;
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
+  it('test-it1', () => {});
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-it', () => {
+  var a;
+beforeAll(() => { a = {}; });
+afterAll(() => { a = undefined; });
   it('test-it1', () => {});
 });
 `,
@@ -259,12 +322,28 @@ someCode();
 `,
             },
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-many-it', () => {
   var a;
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
+
+  it('test-it1', () => {});
+  it('test-it2', () => {
+    someCode();
+    someMoreCode();
+  });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-many-it', () => {
+  var a;
+beforeAll(() => { a = {}; });
+afterAll(() => { a = undefined; });
 
   it('test-it1', () => {});
   it('test-it2', () => {
@@ -308,12 +387,25 @@ describe('test-describe-many-same-line', () => {
 `,
             },
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-many-same-line', () => {
   var a, b;
 beforeEach(() => { b = {}; });
 afterEach(() => { a = undefined;
+b = undefined; });
+
+  it('test-it1', () => {});
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-many-same-line', () => {
+  var a, b;
+beforeAll(() => { b = {}; });
+afterAll(() => { a = undefined;
 b = undefined; });
 
   it('test-it1', () => {});
@@ -351,12 +443,27 @@ b = undefined; });
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-multi-level-it', () => {
   var a, b;
 beforeEach(() => { b = {}; });
 afterEach(() => { a = undefined;
+b = undefined; });
+
+  describe('test-describe-2', () => {
+    it('test-it1', () => {});
+  });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-multi-level-it', () => {
+  var a, b;
+beforeAll(() => { b = {}; });
+afterAll(() => { a = undefined;
 b = undefined; });
 
   describe('test-describe-2', () => {
@@ -393,7 +500,7 @@ b = undefined; });
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-declaration-existing', () => {
   var a;
@@ -405,6 +512,19 @@ b = undefined; });
 });
 `,
             },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-declaration-existing', () => {
+  var a;
+  var b;
+  beforeEach(() => { a = {}; });
+beforeAll(() => { b = {}; });
+  afterEach(() => { a = undefined; });
+afterAll(() => { b = undefined; });
+});
+`,
+            },
           ],
         },
       ],
@@ -415,6 +535,8 @@ describe('test-describe-has-many-before', () => {
   var a = {};
   beforeEach(() => { code(); });
   beforeEach(() => { code(); });
+  beforeAll(() => { code(); });
+  beforeAll(() => { code(); });
 });
 `,
       output: `
@@ -423,6 +545,8 @@ describe('test-describe-has-many-before', () => {
   beforeEach(() => { a = {};
 code(); });
   beforeEach(() => { code(); });
+  beforeAll(() => { code(); });
+  beforeAll(() => { code(); });
 afterEach(() => { a = undefined; });
 });
 `,
@@ -431,14 +555,30 @@ afterEach(() => { a = undefined; });
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-has-many-before', () => {
   var a;
   beforeEach(() => { a = {};
 code(); });
   beforeEach(() => { code(); });
+  beforeAll(() => { code(); });
+  beforeAll(() => { code(); });
 afterEach(() => { a = undefined; });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-has-many-before', () => {
+  var a;
+  beforeEach(() => { code(); });
+  beforeEach(() => { code(); });
+  beforeAll(() => { a = {};
+code(); });
+  beforeAll(() => { code(); });
+afterAll(() => { a = undefined; });
 });
 `,
             },
@@ -452,6 +592,8 @@ describe('test-describe-has-many-after', () => {
   var a = {};
   afterEach(() => { code(); });
   afterEach(() => { code(); });
+  afterAll(() => { code(); });
+  afterAll(() => { code(); });
 });
 `,
       output: `
@@ -461,6 +603,8 @@ beforeEach(() => { a = {}; });
   afterEach(() => { code(); });
   afterEach(() => { code();
 a = undefined; });
+  afterAll(() => { code(); });
+  afterAll(() => { code(); });
 });
 `,
       errors: [
@@ -468,13 +612,29 @@ a = undefined; });
           messageId: 'declarationInDescribe',
           suggestions: [
             {
-              messageId: 'declarationInDescribeBeforeAfter',
+              messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
 describe('test-describe-has-many-after', () => {
   var a;
 beforeEach(() => { a = {}; });
   afterEach(() => { code(); });
   afterEach(() => { code();
+a = undefined; });
+  afterAll(() => { code(); });
+  afterAll(() => { code(); });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-has-many-after', () => {
+  var a;
+beforeAll(() => { a = {}; });
+  afterEach(() => { code(); });
+  afterEach(() => { code(); });
+  afterAll(() => { code(); });
+  afterAll(() => { code();
 a = undefined; });
 });
 `,

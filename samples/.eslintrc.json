@@ -11,8 +11,7 @@
     "ecmaVersion": "latest",
     "sourceType": "module"
   },
-  "plugins": ["@droppedcode/eslint-plugin-jasmine-memoryleak-linter"],
-  "rules": {
-    "@droppedcode/jasmine-memoryleak-linter/describe-declarations": "warn"
-  }
+  "extends": [
+    "plugin:@droppedcode/eslint-plugin-jasmine-memoryleak-linter/recommended"
+  ]
 }
