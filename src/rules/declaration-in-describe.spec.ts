@@ -687,5 +687,59 @@ a = undefined; });
         },
       ],
     },
+    {
+      code: `
+describe('test-describe-it-inject', () => {
+  var a = {};
+  it('test-it1', inject([], () => { a; }));
+});
+`,
+      output: `
+describe('test-describe-it-inject', () => {
+  
+  it('test-it1', inject([], () => { var a = {};
+a; }));
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeIt',
+              output: `
+describe('test-describe-it-inject', () => {
+  
+  it('test-it1', inject([], () => { var a = {};
+a; }));
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterEach',
+              output: `
+describe('test-describe-it-inject', () => {
+  var a;
+beforeEach(() => { a = {}; });
+afterEach(() => { a = undefined; });
+  it('test-it1', inject([], () => { a; }));
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-it-inject', () => {
+  var a;
+beforeAll(() => { a = {}; });
+afterAll(() => { a = undefined; });
+  it('test-it1', inject([], () => { a; }));
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
   ],
 });

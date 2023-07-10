@@ -1,5 +1,7 @@
 import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
 
+import { isCallExpressionWithName } from './node-utils';
+
 /**
  * Prepend content to a call.
  * @param context Rule context.
@@ -16,13 +18,15 @@ export function insertToCallLastFunctionArgument<MessageIds extends string>(
   content: string,
   skipPredicate?: (node: TSESTree.Node) => boolean
 ): TSESLint.RuleFix {
-  const call = node as TSESTree.CallExpression;
-
-  if (call.arguments.length < 1)
+  if (node.arguments.length < 1)
     throw new Error('Missing argument on call to insert to.');
-  const fn = call.arguments[call.arguments.length - 1] as TSESTree.FunctionLike;
+  let fn = node.arguments[node.arguments.length - 1];
 
-  if (!fn.body) throw new Error('Missing body to insert to.');
+  if (isCallExpressionWithName(fn, 'inject')) {
+    fn = fn.arguments[fn.arguments.length - 1];
+  }
+
+  if (!('body' in fn)) throw new Error('Missing body to insert to.');
 
   if (fn.body.type !== AST_NODE_TYPES.BlockStatement) {
     return fixer.replaceText(
