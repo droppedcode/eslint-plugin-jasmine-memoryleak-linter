@@ -35,7 +35,7 @@ function fixToDereference(
   describe: TSESTree.CallExpression,
   after: TSESTree.CallExpression | undefined,
   dereferenceMethod: string
-): TSESLint.RuleFix {
+): TSESLint.RuleFix | undefined {
   if (after) {
     return insertToCallLastFunctionArgument(
       context,
@@ -131,7 +131,7 @@ export function createRule(
                   dereferenceSiblings[dereferenceSiblings.length - 1],
                   name + ' = undefined;',
                   () => true
-                ),
+                ) ?? fixer.insertTextAfter(child, ''),
               suggest: [
                 {
                   messageId: 'assignmentInCleanupReplace',
@@ -147,7 +147,7 @@ export function createRule(
                       dereferenceSiblings[dereferenceSiblings.length - 1],
                       name + ' = undefined;',
                       () => true
-                    ),
+                    ) ?? fixer.insertTextAfter(child, ''),
                 },
               ],
             });
@@ -172,7 +172,7 @@ export function createRule(
               parent,
               dereferenceSiblings[dereferenceSiblings.length - 1],
               dereferenceMethod
-            ),
+            ) ?? fixer.insertTextAfter(parent, ''),
           suggest: [
             {
               messageId: 'assignmentInCleanupAdd',
@@ -184,7 +184,7 @@ export function createRule(
                   parent,
                   dereferenceSiblings[dereferenceSiblings.length - 1],
                   dereferenceMethod
-                ),
+                ) ?? fixer.insertTextAfter(parent, ''),
             },
           ],
         });
