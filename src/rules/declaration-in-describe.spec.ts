@@ -261,9 +261,10 @@ describe('test-describe-it', () => {
 `,
       output: `
 describe('test-describe-it', () => {
-  
-  it('test-it1', () => { var a = {};
-a; });
+  var a;
+beforeEach(() => { a = {}; });
+afterEach(() => { a = undefined; });
+  it('test-it1', () => { a; });
 });
 `,
       errors: [
@@ -380,67 +381,6 @@ afterAll(() => { a = undefined; });
     someCode(a);
     someMoreCode();
   });
-});
-`,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      code: `
-describe('test-describe-many-same-line', () => {
-  var a, b = {};
-
-  it('test-it1', () => { a + b; });
-});
-`,
-      output: `
-describe('test-describe-many-same-line', () => {
-  
-
-  it('test-it1', () => { var a, b = {};
-a + b; });
-});
-`,
-      errors: [
-        {
-          messageId: 'declarationInDescribe',
-          suggestions: [
-            {
-              messageId: 'declarationInDescribeIt',
-              output: `
-describe('test-describe-many-same-line', () => {
-  
-
-  it('test-it1', () => { var a, b = {};
-a + b; });
-});
-`,
-            },
-            {
-              messageId: 'declarationInDescribeBeforeAfterEach',
-              output: `
-describe('test-describe-many-same-line', () => {
-  var a, b;
-beforeEach(() => { b = {}; });
-afterEach(() => { a = undefined;
-b = undefined; });
-
-  it('test-it1', () => { a + b; });
-});
-`,
-            },
-            {
-              messageId: 'declarationInDescribeBeforeAfterAll',
-              output: `
-describe('test-describe-many-same-line', () => {
-  var a, b;
-beforeAll(() => { b = {}; });
-afterAll(() => { a = undefined;
-b = undefined; });
-
-  it('test-it1', () => { a + b; });
 });
 `,
             },
@@ -689,16 +629,17 @@ a = undefined; });
     },
     {
       code: `
-describe('test-describe-it-inject', () => {
+describe('test-describe-inject', () => {
   var a = {};
   it('test-it1', inject([], () => { a; }));
 });
 `,
       output: `
-describe('test-describe-it-inject', () => {
-  
-  it('test-it1', inject([], () => { var a = {};
-a; }));
+describe('test-describe-inject', () => {
+  var a;
+beforeEach(() => { a = {}; });
+afterEach(() => { a = undefined; });
+  it('test-it1', inject([], () => { a; }));
 });
 `,
       errors: [
@@ -708,7 +649,7 @@ a; }));
             {
               messageId: 'declarationInDescribeIt',
               output: `
-describe('test-describe-it-inject', () => {
+describe('test-describe-inject', () => {
   
   it('test-it1', inject([], () => { var a = {};
 a; }));
@@ -718,7 +659,7 @@ a; }));
             {
               messageId: 'declarationInDescribeBeforeAfterEach',
               output: `
-describe('test-describe-it-inject', () => {
+describe('test-describe-inject', () => {
   var a;
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
@@ -729,7 +670,7 @@ afterEach(() => { a = undefined; });
             {
               messageId: 'declarationInDescribeBeforeAfterAll',
               output: `
-describe('test-describe-it-inject', () => {
+describe('test-describe-inject', () => {
   var a;
 beforeAll(() => { a = {}; });
 afterAll(() => { a = undefined; });
@@ -741,5 +682,95 @@ afterAll(() => { a = undefined; });
         },
       ],
     },
+    {
+      code: `
+describe('test-describe-with-type', () => {
+  let a: string = 'test';
+  call(() => a);
+});
+`,
+      output: `
+describe('test-describe-with-type', () => {
+  let a: string;
+beforeEach(() => { a = 'test'; });
+afterEach(() => { a = undefined; });
+  call(() => a);
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfterEach',
+              output: `
+describe('test-describe-with-type', () => {
+  let a: string;
+beforeEach(() => { a = 'test'; });
+afterEach(() => { a = undefined; });
+  call(() => a);
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-with-type', () => {
+  let a: string;
+beforeAll(() => { a = 'test'; });
+afterAll(() => { a = undefined; });
+  call(() => a);
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-object-init', () => {
+  let a: string = 'test';
+  call(() => code({ a }));
+});
+`,
+      output: `
+describe('test-describe-object-init', () => {
+  let a: string;
+beforeEach(() => { a = 'test'; });
+afterEach(() => { a = undefined; });
+  call(() => code({ a }));
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfterEach',
+              output: `
+describe('test-describe-object-init', () => {
+  let a: string;
+beforeEach(() => { a = 'test'; });
+afterEach(() => { a = undefined; });
+  call(() => code({ a }));
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterAll',
+              output: `
+describe('test-describe-object-init', () => {
+  let a: string;
+beforeAll(() => { a = 'test'; });
+afterAll(() => { a = undefined; });
+  call(() => code({ a }));
+});
+`,
+            },
+          ],
+        },
+      ],
+    }
   ],
 });

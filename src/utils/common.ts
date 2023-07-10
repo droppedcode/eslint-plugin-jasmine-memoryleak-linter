@@ -349,6 +349,9 @@ function* traverseParts(node: TSESTree.Node): IterableIterator<TSESTree.Node> {
       // Check for field is present and assume it is a node
       if ('argument' in node && node.argument) yield node.argument;
       if ('arguments' in node && node.arguments) yield* node.arguments;
+      if ('properties' in node && node.properties) yield* node.properties;
+      if ('key' in node && node.key) yield node.key;
+      if ('value' in node && node.value && typeof node.value === 'object' && 'type' in node.value) yield node.value;
       if ('params' in node && node.params) yield* node.params;
       if ('callee' in node && node.callee) yield node.callee;
       if ('left' in node && node.left) yield node.left;

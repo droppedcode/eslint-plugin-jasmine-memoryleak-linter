@@ -2,4 +2,4 @@
 
 import { createRule } from './no-cleanup-base';
 
-export const noCleanupBeforeAllRule = createRule('beforeAll', 'afterAll');
+export const noCleanupBeforeAllRule = createRule('beforeAll', 'afterAll', false);

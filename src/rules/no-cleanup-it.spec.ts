@@ -13,8 +13,8 @@ describe('no-cleanup-ok-has-cleanup', () => {
   var a;
   it(() => {
     a = {};
+    a = undefined; 
   });
-  afterEach(() => { a = undefined; });
 });
 `,
     `
@@ -47,79 +47,23 @@ describe('no-cleanup', () => {
       output: `
 describe('no-cleanup', () => {
   var a;
-afterEach(() => { a = undefined; });
   it(() => {
     a = {};
-  });
-});
-`,
-      errors: [
-        {
-          messageId: 'assignmentWithoutCleanup',
-          suggestions: [
-            {
-              messageId: 'assignmentInCleanupAdd',
-              output: `
-describe('no-cleanup', () => {
-  var a;
-afterEach(() => { a = undefined; });
-  it(() => {
-    a = {};
-  });
-});
-`,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      code: `
-describe('no-cleanup-has-after', () => {
-  var a;
-  it(() => {
-    a = {};
-  });
-  afterEach(() => {
-    code();
-  });
-  afterEach(() => {
-    code();
-  });
-});
-`,
-      output: `
-describe('no-cleanup-has-after', () => {
-  var a;
-  it(() => {
-    a = {};
-  });
-  afterEach(() => {
-    code();
-  });
-  afterEach(() => {
-    code();
 a = undefined;
   });
 });
 `,
       errors: [
         {
-          messageId: 'assignmentWithoutCleanup',
+          messageId: 'assignmentInCleanup',
           suggestions: [
             {
               messageId: 'assignmentInCleanupAdd',
               output: `
-describe('no-cleanup-has-after', () => {
+describe('no-cleanup', () => {
   var a;
   it(() => {
     a = {};
-  });
-  afterEach(() => {
-    code();
-  });
-  afterEach(() => {
-    code();
 a = undefined;
   });
 });

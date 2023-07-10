@@ -77,8 +77,9 @@ function* fixMoveToBeforeAfter(
 ): IterableIterator<TSESLint.RuleFix> {
   const initialization =
     node.declarations
-      .filter((f) => f.init && declarators.indexOf(f) !== -1)
-      .map((m) => context.getSourceCode().getText(m))
+      .filter((f) => f.init && 'name' in f.id && declarators.indexOf(f) !== -1)
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      .map((m) => m.id['name'] + ' = ' + context.getSourceCode().getText(m.init!))
       .join(', ') + ';';
 
   const cleanup = node.declarations
@@ -156,12 +157,11 @@ function* fixMoveToBeforeAfter(
   yield fixer.replaceText(
     node,
     (node.kind === 'const' ? 'let' : node.kind) +
-      ' ' +
-      node.declarations
-        .filter((f) => 'name' in f.id)
-        .map((m) => m.id['name'])
-        .join(', ') +
-      ';'
+    ' ' +
+    node.declarations
+      .map((m) => context.getSourceCode().getText(m.id))
+      .join(', ') +
+    ';'
   );
 }
 
@@ -256,14 +256,12 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
       );
 
       const suggestions: ReportSuggestionArray<MessageIds> = [];
-      let fix: TSESLint.ReportFixFunction | undefined;
 
       if (siblingIts.length === 1) {
-        fix = (fixer): IterableIterator<TSESLint.RuleFix> =>
-          fixMoveToIt(context, fixer, node, siblingIts, declarators);
         suggestions.push({
           messageId: 'declarationInDescribeIt',
-          fix: fix,
+          fix: (fixer): IterableIterator<TSESLint.RuleFix> =>
+            fixMoveToIt(context, fixer, node, siblingIts, declarators),
         });
       } else if (siblingIts.length > 1) {
         suggestions.push({
@@ -301,7 +299,7 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
         suggest: suggestions,
       };
 
-      fix ??= suggestions[suggestions.length - 2].fix;
+      const fix = suggestions[suggestions.length - 2]?.fix;
       if (fix) {
         report['fix'] = fix;
       }

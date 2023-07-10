@@ -1,5 +1,6 @@
 // Check if we are not cleaning up the data in afterX
 import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
+import { ReportSuggestionArray } from '@typescript-eslint/utils/dist/ts-eslint';
 
 import { findDeclarator, getLastAssignment } from '../utils/common';
 import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
@@ -65,11 +66,13 @@ function fixToDereference(
  * Create an each* rule.
  * @param assignmentMethod Name of the method which should assign the value.
  * @param dereferenceMethod Name of the method which should dereference the value.
+ * @param dereferenceInSameMethod Should the dereference be in the same method.
  * @returns The rule.
  */
 export function createRule(
   assignmentMethod: string,
-  dereferenceMethod: string
+  dereferenceMethod: string,
+  dereferenceInSameMethod: boolean
 ): TSESLint.RuleModule<MessageIds> {
   return {
     defaultOptions: [],
@@ -108,7 +111,7 @@ export function createRule(
         // Local declaration
         if (findDeclarator(name, node, (n) => n === call)) return;
 
-        const dereferenceSiblings = siblingNodesOfType(
+        const dereferenceSiblings = dereferenceInSameMethod ? [call] : siblingNodesOfType(
           call,
           AST_NODE_TYPES.ExpressionStatement,
           (n) =>
@@ -121,6 +124,28 @@ export function createRule(
 
         if (child) {
           if (isTruishAssignment(child)) {
+            const suggestions: ReportSuggestionArray<MessageIds> = [];
+
+            if (!dereferenceInSameMethod) {
+              suggestions.push({
+                messageId: 'assignmentInCleanupReplace',
+                fix: (fixer) =>
+                  fixer.replaceText(child.right, ' = undefined;'),
+              });
+            }
+
+            suggestions.push({
+              messageId: 'assignmentInCleanupAdd',
+              fix: (fixer) =>
+                insertToCallLastFunctionArgument(
+                  context,
+                  fixer,
+                  dereferenceSiblings[dereferenceSiblings.length - 1],
+                  name + ' = undefined;',
+                  () => true
+                ) ?? fixer.insertTextAfter(child, ''),
+            });
+
             return context.report({
               messageId: 'assignmentInCleanup',
               node: child,
@@ -132,24 +157,7 @@ export function createRule(
                   name + ' = undefined;',
                   () => true
                 ) ?? fixer.insertTextAfter(child, ''),
-              suggest: [
-                {
-                  messageId: 'assignmentInCleanupReplace',
-                  fix: (fixer) =>
-                    fixer.replaceText(child.right, ' = undefined;'),
-                },
-                {
-                  messageId: 'assignmentInCleanupAdd',
-                  fix: (fixer) =>
-                    insertToCallLastFunctionArgument(
-                      context,
-                      fixer,
-                      dereferenceSiblings[dereferenceSiblings.length - 1],
-                      name + ' = undefined;',
-                      () => true
-                    ) ?? fixer.insertTextAfter(child, ''),
-                },
-              ],
+              suggest: suggestions,
             });
           } else {
             // There is cleanup code, nothing to do.

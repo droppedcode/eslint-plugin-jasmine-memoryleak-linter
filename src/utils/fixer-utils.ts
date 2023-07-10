@@ -8,7 +8,7 @@ import { isCallExpression } from './node-utils';
  * @param fixer Fixer for the problem.
  * @param node Node to work on.
  * @param content Content to prepend.
- * @param skipPredicate Predicate to find the node after insertion should happen.
+ * @param skipPredicate Predicate to find the node after insertion should happen, this will test all nodes and insert after the last true result.
  * @returns Fix for the prepend.
  */
 export function insertToCallLastFunctionArgument<MessageIds extends string>(
@@ -42,8 +42,6 @@ export function insertToCallLastFunctionArgument<MessageIds extends string>(
         for (const n of fn.body.body) {
           if (skipPredicate(n)) {
             afterNode = n;
-          } else {
-            break;
           }
         }
       }
