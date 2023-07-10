@@ -29,7 +29,7 @@ To configure the ESLint use the usual way:
 
 All rules has a built in fix, but usually gives multiple suggestions to how to solve the issue.
 
-### describe-declarations
+### declaration-in-describe
 
 Looks for cases where variables are declared and initialized within a "describe" method:
 
@@ -269,3 +269,8 @@ describe('test-describe-let', () => {
 
 The samples are a configured mini project that uses only these rules, so you can see it in action.
 To try it out open the samples folder, do not run it from the main folder, because ESLint will have false results.
+
+## Known issues
+
+- "var" declarations in certain situations (when it is not used like a "let") can break some logics
+- When using "Move declarations to the "it" block(s)", the fix will unnecessarily move it to blocks that does not capture the variable

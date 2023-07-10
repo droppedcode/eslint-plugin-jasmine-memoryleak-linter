@@ -1,8 +1,7 @@
 {
   "name": "@droppedcode/eslint-plugin-jasmine-memoryleak-linter",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "An ESLint extension to detect and fix Jasmine related memory leaks.",
-  "main": "index.js",
   "author": "droppedcode",
   "license": "MIT",
   "scripts": {
@@ -32,5 +31,21 @@
     "prettier": "^2.8.8",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
-  }
+  },
+  "keywords": [
+    "eslintplugin",
+    "eslint-plugin",
+    "eslint",
+    "jasmine",
+    "mocha",
+    "memory",
+    "memory leak"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "homepage": "https://github.com/droppedcode/eslint-plugin-jasmine-memoryleak-linter",
+  "repository": "git://github.com/droppedcode/eslint-plugin-jasmine-memoryleak-linter"
 }

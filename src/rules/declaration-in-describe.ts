@@ -1,7 +1,7 @@
 import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
 import { ReportSuggestionArray } from '@typescript-eslint/utils/dist/ts-eslint';
 
-import { hasCleanup } from '../utils/common';
+import { hasCleanup, isCaptured } from '../utils/common';
 import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
 import {
   closestCallExpressionIfName,
@@ -24,13 +24,15 @@ type MessageIds =
  * @param fixer Fixer for the problem.
  * @param node Node to work on.
  * @param siblingIts Sibling it nodes.
+ * @param declarators Captured declarators.
  * @yields Fixes for the problem.
  */
 function* fixMoveToIt(
   context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
   fixer: TSESLint.RuleFixer,
   node: TSESTree.VariableDeclaration,
-  siblingIts: TSESTree.CallExpression[]
+  siblingIts: TSESTree.CallExpression[],
+  declarators: TSESTree.VariableDeclarator[]
 ): IterableIterator<TSESLint.RuleFix> {
   const declaration = context.getSourceCode().getText(node);
   for (const sibling of siblingIts) {
@@ -57,6 +59,7 @@ function* fixMoveToIt(
  * @param siblingBefore Sibling beforeEach node, if any.
  * @param siblingAfters Sibling afterEach nodes, if any.
  * @param suffix Suffix of the each commands.
+ * @param declarators Captured declarators.
  * @yields Fixes for the problem.
  */
 function* fixMoveToBeforeAfter(
@@ -66,16 +69,22 @@ function* fixMoveToBeforeAfter(
   describe: TSESTree.CallExpression,
   siblingBefore: TSESTree.CallExpression | undefined,
   siblingAfters: TSESTree.CallExpression[],
-  suffix: string
+  suffix: string,
+  declarators: TSESTree.VariableDeclarator[]
 ): IterableIterator<TSESLint.RuleFix> {
   const initialization =
     node.declarations
-      .filter((f) => f.init)
+      .filter((f) => f.init && declarators.indexOf(f) !== -1)
       .map((m) => context.getSourceCode().getText(m))
       .join(', ') + ';';
 
   const cleanup = node.declarations
-    .filter((f) => 'name' in f.id && !hasCleanup(siblingAfters, f.id['name']))
+    .filter(
+      (f) =>
+        'name' in f.id &&
+        declarators.indexOf(f) !== -1 &&
+        !hasCleanup(siblingAfters, f.id['name'])
+    )
     .map((m) => m.id['name'] + ' = undefined;')
     .join('\n');
 
@@ -183,6 +192,11 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
 
       if (!call) return;
 
+      const declarators = node.declarations.filter((s) => isCaptured(s));
+
+      // No captured declarators
+      if (declarators.length === 0) return;
+
       const siblingCalls = siblingNodesOfType(
         node,
         AST_NODE_TYPES.ExpressionStatement
@@ -208,7 +222,7 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
 
       if (siblingIts.length === 1) {
         fix = (fixer): IterableIterator<TSESLint.RuleFix> =>
-          fixMoveToIt(context, fixer, node, siblingIts);
+          fixMoveToIt(context, fixer, node, siblingIts, declarators);
         suggestions.push({
           messageId: 'declarationInDescribeIt',
           fix: fix,
@@ -216,7 +230,8 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
       } else if (siblingIts.length > 1) {
         suggestions.push({
           messageId: 'declarationInDescribeManyIt',
-          fix: (fixer) => fixMoveToIt(context, fixer, node, siblingIts),
+          fix: (fixer) =>
+            fixMoveToIt(context, fixer, node, siblingIts, declarators),
         });
       }
 
@@ -227,7 +242,8 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
         call,
         siblingBeforeEach,
         siblingAfterEach,
-        'Each'
+        'Each',
+        declarators
       );
 
       addXSuggestion(
@@ -237,7 +253,8 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
         call,
         siblingBeforeAll,
         siblingAfterAll,
-        'All'
+        'All',
+        declarators
       );
 
       const report = {
@@ -265,6 +282,7 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
  * @param siblingBefore Sibling beforeX calls.
  * @param siblingAfter Sibling afterX calls.
  * @param suffix Function suffix to use.
+ * @param declarators Captured declarators.
  */
 function addXSuggestion(
   node: TSESTree.VariableDeclaration,
@@ -274,7 +292,8 @@ function addXSuggestion(
   describe: TSESTree.CallExpression & { callee: { name: 'describe' } },
   siblingBefore: TSESTree.CallExpression[],
   siblingAfter: TSESTree.CallExpression[],
-  suffix: string
+  suffix: string,
+  declarators: TSESTree.VariableDeclarator[]
 ): void {
   if (node.kind !== 'const') {
     suggestions.push({
@@ -287,7 +306,8 @@ function addXSuggestion(
           describe,
           siblingBefore[0],
           siblingAfter,
-          suffix
+          suffix,
+          declarators
         ),
     });
   } else {
@@ -303,7 +323,8 @@ function addXSuggestion(
           describe,
           siblingBefore[0],
           siblingAfter,
-          suffix
+          suffix,
+          declarators
         ),
     });
   }

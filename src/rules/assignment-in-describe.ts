@@ -1,7 +1,7 @@
 import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
 import { ReportSuggestionArray } from '@typescript-eslint/utils/dist/ts-eslint';
 
-import { hasCleanup } from '../utils/common';
+import { findDeclarator, hasCleanup, isCaptured } from '../utils/common';
 import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
 import {
   closestCallExpressionIfName,
@@ -134,9 +134,18 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<MessageIds> = {
   },
   create: (context) => ({
     AssignmentExpression: (node): void => {
+      if (!isNameIdentifier(node.left)) return;
+
+      const name = node.left.name;
       const call = closestCallExpressionIfName(node, 'describe');
 
       if (!call) return;
+
+      const declarator = findDeclarator(name, node);
+      // Probably global variable, we should not modify it
+      if (!declarator) return;
+
+      if (!isCaptured(declarator)) return;
 
       const siblingCalls = siblingNodesOfType(
         node,

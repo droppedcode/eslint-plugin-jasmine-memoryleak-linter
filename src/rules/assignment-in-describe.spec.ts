@@ -14,6 +14,7 @@ ruleTester.run('assignment-in-describe', assignmentInDescribeRule, {
 describe('test-describe-let', () => {
   let a;
   a = {};
+  call(() => a);
 });
 `,
       output: `
@@ -22,6 +23,7 @@ describe('test-describe-let', () => {
   
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
+  call(() => a);
 });
 `,
       errors: [
@@ -36,6 +38,7 @@ describe('test-describe-let', () => {
   
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
+  call(() => a);
 });
 `,
             },
@@ -47,6 +50,7 @@ describe('test-describe-let', () => {
   
 beforeAll(() => { a = {}; });
 afterAll(() => { a = undefined; });
+  call(() => a);
 });
 `,
             },
@@ -59,6 +63,7 @@ afterAll(() => { a = undefined; });
 describe('test-describe-var', () => {
   var a;
   a = {};
+  call(() => a);
 });
 `,
       output: `
@@ -67,6 +72,7 @@ describe('test-describe-var', () => {
   
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
+  call(() => a);
 });
 `,
       errors: [
@@ -81,6 +87,7 @@ describe('test-describe-var', () => {
   
 beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
+  call(() => a);
 });
 `,
             },
@@ -92,6 +99,7 @@ describe('test-describe-var', () => {
   
 beforeAll(() => { a = {}; });
 afterAll(() => { a = undefined; });
+  call(() => a);
 });
 `,
             },
@@ -108,6 +116,7 @@ describe('test-describe-has-many-before', () => {
   beforeEach(() => { code(); });
   beforeAll(() => { code(); });
   beforeAll(() => { code(); });
+  call(() => a);
 });
 `,
       output: `
@@ -120,6 +129,7 @@ code(); });
   beforeAll(() => { code(); });
   beforeAll(() => { code(); });
 afterEach(() => { a = undefined; });
+  call(() => a);
 });
 `,
       errors: [
@@ -138,6 +148,7 @@ code(); });
   beforeAll(() => { code(); });
   beforeAll(() => { code(); });
 afterEach(() => { a = undefined; });
+  call(() => a);
 });
 `,
             },
@@ -153,6 +164,7 @@ describe('test-describe-has-many-before', () => {
 code(); });
   beforeAll(() => { code(); });
 afterAll(() => { a = undefined; });
+  call(() => a);
 });
 `,
             },
@@ -169,6 +181,7 @@ describe('test-describe-has-many-after', () => {
   afterEach(() => { code(); });
   afterAll(() => { code(); });
   afterAll(() => { code(); });
+  call(() => a);
 });
 `,
       output: `
@@ -181,6 +194,7 @@ beforeEach(() => { a = {}; });
 a = undefined; });
   afterAll(() => { code(); });
   afterAll(() => { code(); });
+  call(() => a);
 });
 `,
       errors: [
@@ -199,6 +213,7 @@ beforeEach(() => { a = {}; });
 a = undefined; });
   afterAll(() => { code(); });
   afterAll(() => { code(); });
+  call(() => a);
 });
 `,
             },
@@ -214,6 +229,7 @@ beforeAll(() => { a = {}; });
   afterAll(() => { code(); });
   afterAll(() => { code();
 a = undefined; });
+  call(() => a);
 });
 `,
             },
