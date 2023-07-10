@@ -5,7 +5,10 @@ import { hasCleanup, isCaptured } from '../utils/common';
 import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
 import {
   closestCallExpressionIfName,
+  closestNodeOfTypes,
   isCallExpressionWithName,
+  isNameIdentifier,
+  isNodeOfType,
   siblingNodesOfType,
 } from '../utils/node-utils';
 
@@ -162,6 +165,31 @@ function* fixMoveToBeforeAfter(
   );
 }
 
+/**
+ * Check if a declarator is allowed.
+ * @param declarator VariableDeclarator to check.
+ * @param kind Declaration kind.
+ * @returns True if the declaration is allowed.
+ */
+function allowedDeclarator(
+  declarator: TSESTree.VariableDeclarator,
+  kind: 'const' | 'let' | 'var'
+): boolean {
+  // No init
+  if (!declarator.init) return true;
+
+  // Must be const
+  if (kind !== 'const') return false;
+
+  // Allow literals
+  if (isNodeOfType(declarator.init, AST_NODE_TYPES.Literal)) return true;
+
+  // Allow undefined
+  if (isNameIdentifier(declarator.init, 'undefined')) return true;
+
+  return false;
+}
+
 // TODO: add options to skip eg. const
 export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
   defaultOptions: [],
@@ -186,7 +214,17 @@ export const declarationInDescribeRule: TSESLint.RuleModule<MessageIds> = {
   },
   create: (context) => ({
     VariableDeclaration: (node): void => {
-      if (!node.declarations.some((s) => s.init)) return;
+      if (!node.declarations.some((s) => !allowedDeclarator(s, node.kind)))
+        return;
+
+      // Within a function
+      if (
+        closestNodeOfTypes(node, [
+          AST_NODE_TYPES.CallExpression,
+          AST_NODE_TYPES.FunctionDeclaration,
+        ])?.type === AST_NODE_TYPES.FunctionDeclaration
+      )
+        return;
 
       const call = closestCallExpressionIfName(node, 'describe');
 

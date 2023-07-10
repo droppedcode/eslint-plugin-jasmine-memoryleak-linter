@@ -272,5 +272,6 @@ To try it out open the samples folder, do not run it from the main folder, becau
 
 ## Known issues
 
-- "var" declarations in certain situations (when it is not used like a "let") can break some logics
-- When using "Move declarations to the "it" block(s)", the fix will unnecessarily move it to blocks that does not capture the variable
+- "var" declarations in certain situations (when it is not used like a "let") can break some logics.
+- When using "Move declarations to the "it" block(s)", the fix will unnecessarily move it to blocks that does not capture the variable.
+- Missing options to configure rules.
