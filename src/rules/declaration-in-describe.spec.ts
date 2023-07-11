@@ -771,6 +771,61 @@ afterAll(() => { a = undefined; });
           ],
         },
       ],
-    }
+    },
+    {
+      code: `
+describe('test-describe-init', () => {
+  const init = [];
+  describe('test-describe-init-inner', () => {
+    init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+    init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+  });
+});
+`,
+      output: `
+describe('test-describe-init', () => {
+  
+  describe('test-describe-init-inner', () => {
+    const init = [];
+init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+    const init = [];
+init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+  });
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribeForInit',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeForInitMove',
+              output: `
+describe('test-describe-init', () => {
+  
+  describe('test-describe-init-inner', () => {
+    const init = [];
+init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+    const init = [];
+init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+  });
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
   ],
 });

@@ -29,7 +29,7 @@ To configure the ESLint use the usual way:
 
 All rules has a built in fix, but usually gives multiple suggestions to how to solve the issue.
 
-### declaration-in-describe
+### declaration-in-describe (There are declarations in a describe.)
 
 Looks for cases where variables are declared and initialized within a "describe" method:
 
@@ -48,8 +48,6 @@ This can be fixed in multiple ways:
 #### Move declarations to the "it" block(s)
 
 Moves the declaration logic to the "it" blocks. This will cause the variable to be local and GC will clean it up.
-
-(This is the default fix if there is one and only one "it" block.)
 
 ```ts
 describe('test-describe-let', () => {
@@ -102,7 +100,31 @@ describe('test-describe-let', () => {
 });
 ```
 
-### assignment-in-describe
+### declaration-in-describe (There are declarations in a describe which is used for initialization, but captured.)
+
+Looks for cases where variables are declared and initialized within a "describe" method, but used only for initialization in an other describe:
+
+```ts
+describe('test-describe-let', () => {
+  let a = [1, 2]; // This will trigger it
+
+  describe('inner', () => {
+    a.forEach(() => {});
+  });
+});
+```
+
+```ts
+describe('test-describe-let', () => {
+  describe('inner', () => {
+    let a = [1, 2];
+
+    a.forEach(() => {});
+  });
+});
+```
+
+### assignment-in-describe (There are assignments in a describe.)
 
 Looks for cases when assignment to a variable happens in a describe but not within a declaration.
 
@@ -159,7 +181,7 @@ describe('test-describe-let', () => {
 });
 ```
 
-### no-cleanup-before-each-rule
+### no-cleanup-before-each-rule (There is assignment in "beforeEach" but no cleanup in "afterEach".)
 
 Looks for cases when we assign a value to a variable in a beforeEach call, but there is no or the last assignment is not a dereference.
 
@@ -191,7 +213,7 @@ describe('test-describe-let', () => {
 });
 ```
 
-### no-cleanup-before-all-rule
+### no-cleanup-before-all-rule (There is assignment in "beforeAll" but no cleanup in "afterAll".)
 
 Looks for cases when we assign a value to a variable in a beforeAll call, but there is no or the last assignment is not a dereference.
 
@@ -223,7 +245,7 @@ describe('test-describe-let', () => {
 });
 ```
 
-### no-cleanup-it-rule
+### no-cleanup-it-rule (There is assignment in "it" but no cleanup in "it".)
 
 Looks for cases when we assign a value to a variable in a beforeAll call, but there is no or the last assignment is not a dereference.
 

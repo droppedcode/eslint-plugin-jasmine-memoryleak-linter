@@ -1,5 +1,6 @@
 import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
 
+import { CapturingNode } from './common';
 import { isCallExpression } from './node-utils';
 
 /**
@@ -14,32 +15,56 @@ import { isCallExpression } from './node-utils';
 export function insertToCallLastFunctionArgument<MessageIds extends string>(
   context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
   fixer: TSESLint.RuleFixer,
-  node: TSESTree.CallExpression,
+  node: TSESTree.CallExpression | CapturingNode,
   content: string,
   skipPredicate?: (node: TSESTree.Node) => boolean
 ): TSESLint.RuleFix | undefined {
-  if (node.arguments.length < 1) return undefined;
-  let fn = node.arguments[node.arguments.length - 1];
+  let body: TSESTree.BlockStatement | TSESTree.Expression;
 
-  // Handle inject, fakeAsync... calls
-  if (isCallExpression(fn)) {
-    fn = fn.arguments[fn.arguments.length - 1];
+  if (node.type === AST_NODE_TYPES.CallExpression) {
+    if (node.arguments.length < 1) return undefined;
+
+    const lastArg = node.arguments[node.arguments.length - 1];
+
+    body =
+      lastArg.type === AST_NODE_TYPES.SpreadElement
+        ? lastArg.argument
+        : lastArg;
+  } else {
+    body = node.body;
   }
 
-  if (!('body' in fn)) return undefined;
+  // Handle inject, fakeAsync... calls
+  if (isCallExpression(body)) {
+    const lastArg = body.arguments[body.arguments.length - 1];
 
-  if (fn.body.type !== AST_NODE_TYPES.BlockStatement) {
+    body =
+      lastArg.type === AST_NODE_TYPES.SpreadElement
+        ? lastArg.argument
+        : lastArg;
+  }
+
+  if (body.type !== AST_NODE_TYPES.BlockStatement && 'body' in body) {
+    if (body.body.type === AST_NODE_TYPES.ClassBody) {
+      // This should not happen...
+      return undefined;
+    } else {
+      body = body.body;
+    }
+  }
+
+  if (body.type !== AST_NODE_TYPES.BlockStatement) {
     return fixer.replaceText(
-      fn.body,
-      '{ ' + context.getSourceCode().getText(fn.body) + ';\n' + content + ' }'
+      body,
+      '{ ' + context.getSourceCode().getText(body) + ';\n' + content + ' }'
     );
   } else {
-    if (fn.body.body.length === 0) {
-      return fixer.replaceText(fn.body, '{ ' + content + ' }');
+    if (body.body.length === 0) {
+      return fixer.replaceText(body, '{ ' + content + ' }');
     } else {
       let afterNode;
       if (skipPredicate) {
-        for (const n of fn.body.body) {
+        for (const n of body.body) {
           if (skipPredicate(n)) {
             afterNode = n;
           }
@@ -49,7 +74,7 @@ export function insertToCallLastFunctionArgument<MessageIds extends string>(
       if (afterNode) {
         return fixer.insertTextAfter(afterNode, '\n' + content);
       } else {
-        return fixer.insertTextBefore(fn.body.body[0], content + '\n');
+        return fixer.insertTextBefore(body.body[0], content + '\n');
       }
     }
   }
