@@ -155,13 +155,13 @@ type VariableDeclaratorWithIdentifier = TSESTree.VariableDeclarator & {
 };
 
 /**
- * Searches for captures for a variable.
+ * Get root statements for variable analysis.
  * @param variable The VariableDeclarator.
- * @yields The capturing node.
+ * @returns The root statements.
  */
-export function* findCaptures(
+function getRootStatementsForVairableAnalysis(
   variable: TSESTree.VariableDeclarator
-): IterableIterator<CapturingNode> {
+): TSESTree.Statement[] {
   if (!variable.parent)
     throw new Error('Parent is missing for VariableDeclarator.');
   if (!isNodeOfType(variable.parent, AST_NODE_TYPES.VariableDeclaration))
@@ -169,23 +169,23 @@ export function* findCaptures(
       'Parent for VariableDeclarator is not VariableDeclaration.'
     );
 
-  if (variable.id.type !== AST_NODE_TYPES.Identifier) return;
+  if (variable.id.type !== AST_NODE_TYPES.Identifier) return [];
 
   const root =
     // With var we need function scope
     variable.parent.kind === 'var'
       ? <
-          | TSESTree.ArrowFunctionExpression
-          | TSESTree.FunctionExpression
-          | TSESTree.Program
-        >closestNodeOfTypes(variable, [
-          AST_NODE_TYPES.ArrowFunctionExpression,
-          AST_NODE_TYPES.FunctionExpression,
-          AST_NODE_TYPES.Program,
-        ])
+      | TSESTree.ArrowFunctionExpression
+      | TSESTree.FunctionExpression
+      | TSESTree.Program
+      >closestNodeOfTypes(variable, [
+        AST_NODE_TYPES.ArrowFunctionExpression,
+        AST_NODE_TYPES.FunctionExpression,
+        AST_NODE_TYPES.Program,
+      ])
       : closestNodeOfType(variable, AST_NODE_TYPES.BlockStatement);
 
-  if (!root) return false;
+  if (!root) return [];
 
   // Collect top level statements where we need to look for closure
   let statements: TSESTree.Statement[];
@@ -194,7 +194,7 @@ export function* findCaptures(
       if (root.body.type === AST_NODE_TYPES.BlockStatement) {
         statements = root.body.body;
       } else {
-        return false;
+        return [];
       }
       break;
     case AST_NODE_TYPES.FunctionExpression:
@@ -208,24 +208,21 @@ export function* findCaptures(
       break;
   }
 
-  yield* findCapturesInternal(
-    statements,
-    <VariableDeclaratorWithIdentifier>variable
-  );
+  return statements;
 }
 
 /**
  * Searches for captures for a variable.
- * @param statements The statements to search in.
  * @param variable The VariableDeclarator.
  * @yields The capturing node.
  */
-function* findCapturesInternal(
-  statements: TSESTree.Statement[],
-  variable: VariableDeclaratorWithIdentifier
+export function* findCaptures(
+  variable: TSESTree.VariableDeclarator
 ): IterableIterator<CapturingNode> {
-  for (const statement of statements) {
-    yield* findCapturesLookingForClosure(statement, variable, undefined);
+  if (variable.id.type !== AST_NODE_TYPES.Identifier) return;
+
+  for (const statement of getRootStatementsForVairableAnalysis(variable)) {
+    yield* findCapturesLookingForClosure(statement, <VariableDeclaratorWithIdentifier>variable, undefined, new Set());
   }
 }
 
@@ -239,59 +236,132 @@ export function isCaptured(variable: TSESTree.VariableDeclarator): boolean {
 }
 
 /**
+ * Searches for uses for a variable.
+ * @param variable The VariableDeclarator.
+ * @yields The using node.
+ */
+export function* findUses(
+  variable: TSESTree.VariableDeclarator
+): IterableIterator<TSESTree.Identifier> {
+  if (variable.id.type !== AST_NODE_TYPES.Identifier) return;
+
+  for (const statement of getRootStatementsForVairableAnalysis(variable)) {
+    yield* findUsesOfVariable(statement, <VariableDeclaratorWithIdentifier>variable);
+  }
+}
+
+/**
+ * Checks if a variable is captured or not.
+ * @param variable The VariableDeclarator.
+ * @param parent The parent to look in, if undefined uses the root of the declaration.
+ * @returns True if the variable is captured.
+ */
+export function isUsed(variable: TSESTree.VariableDeclarator, parent?: TSESTree.Node): boolean {
+  if (variable.id.type !== AST_NODE_TYPES.Identifier) false;
+
+  return parent ? !findUsesOfVariable(parent, <VariableDeclaratorWithIdentifier>variable).next().done : !findUses(variable).next().done;
+}
+
+/**
  * Looks for a closures that captures the variable.
  * Variable override detection for var declaration can cause false positives.
  * @param node Current node.
  * @param variable Variable declarator.
- * @param candidate
+ * @param candidate Current yield candidate.
+ * @param yielded Already yielded nodes.
  * @yields Nodes that capture the variable.
  */
 function* findCapturesLookingForClosure(
   node: TSESTree.Node,
   variable: VariableDeclaratorWithIdentifier,
-  candidate: CapturingNode | undefined
+  candidate: CapturingNode | undefined,
+  yielded: Set<CapturingNode>
 ): IterableIterator<CapturingNode> {
   switch (node.type) {
     case AST_NODE_TYPES.Identifier:
-      if (candidate) yield candidate;
-      return;
+      if (candidate && node.name === variable.id.name) {
+        const currentCount = yielded.size;
+        yielded.add(candidate);
+        if (currentCount !== yielded.size) {
+          yield candidate;
+        }
+      }
+      break;
     case AST_NODE_TYPES.MemberExpression:
       // Ignore property
-      yield* findCapturesLookingForClosure(node.object, variable, candidate);
-      return;
+      yield* findCapturesLookingForClosure(node.object, variable, candidate, yielded);
+      break;
     case AST_NODE_TYPES.BlockStatement:
       for (const child of node.body) {
         // Variable override
         if (
-          isNodeOfType(child, AST_NODE_TYPES.VariableDeclaration) &&
-          child.declarations.some(
-            (s) => s !== variable && isNameIdentifier(s.id, variable.id.name)
-          )
-        )
-          return;
-
-        yield* findCapturesLookingForClosure(child, variable, candidate);
+          !(isNodeOfType(child, AST_NODE_TYPES.VariableDeclaration) &&
+            child.declarations.some(
+              (s) => s !== variable && isNameIdentifier(s.id, variable.id.name)
+            ))
+        ) {
+          yield* findCapturesLookingForClosure(child, variable, candidate, yielded);
+        }
       }
-      return;
+      break;
     case AST_NODE_TYPES.ArrowFunctionExpression:
     case AST_NODE_TYPES.FunctionExpression:
     case AST_NODE_TYPES.FunctionDeclaration:
       // Argument overrides variable
-      if (node.params.some((s) => isNameIdentifier(s, variable.id.name)))
-        return;
-
-      if (node.body.type === AST_NODE_TYPES.BlockStatement) {
-        for (const child of node.body.body) {
-          yield* findCapturesLookingForClosure(child, variable, node);
-        }
-      } else {
-        yield* findCapturesLookingForClosure(node.body, variable, node);
+      if (!node.params.some((s) => isNameIdentifier(s, variable.id.name))) {
+          yield* findCapturesLookingForClosure(node.body, variable, node, yielded);
       }
-      return;
+      break;
+    default:
+      for (const descendant of traverseParts(node)) {
+        yield* findCapturesLookingForClosure(descendant, variable, candidate, yielded);
+      }
+      break;
   }
+}
 
-  for (const descendant of traverseParts(node)) {
-    yield* findCapturesLookingForClosure(descendant, variable, candidate);
+/**
+ * Looks for a uses of variable.
+ * Variable override detection for var declaration can cause false positives.
+ * @param node Current node.
+ * @param variable Variable declarator.
+ * @yields Nodes that capture the variable.
+ */
+function* findUsesOfVariable(
+  node: TSESTree.Node,
+  variable: VariableDeclaratorWithIdentifier,
+): IterableIterator<TSESTree.Identifier> {
+  switch (node.type) {
+    case AST_NODE_TYPES.Identifier:
+      if (node.name === variable.id.name)
+        yield node;
+      break;
+    case AST_NODE_TYPES.BlockStatement:
+      for (const child of node.body) {
+        // Variable override
+        if (
+          !(isNodeOfType(child, AST_NODE_TYPES.VariableDeclaration) &&
+            child.declarations.some(
+              (s) => s !== variable && isNameIdentifier(s.id, variable.id.name)
+            ))
+        ) {
+          yield* findUsesOfVariable(child, variable);
+        }
+      }
+      break;
+    case AST_NODE_TYPES.ArrowFunctionExpression:
+    case AST_NODE_TYPES.FunctionExpression:
+    case AST_NODE_TYPES.FunctionDeclaration:
+      // Argument overrides variable
+      if (!node.params.some((s) => isNameIdentifier(s, variable.id.name))) {
+        yield* findUsesOfVariable(node.body, variable);
+      }
+      break;
+    default:
+      for (const descendant of traverseParts(node)) {
+        yield* findUsesOfVariable(descendant, variable);
+      }
+      break;
   }
 }
 
@@ -300,48 +370,63 @@ function* findCapturesLookingForClosure(
  * @param node Current node.
  * @yields Nodes in the tree.
  */
-function* traverseParts(node: TSESTree.Node): IterableIterator<TSESTree.Node> {
-  switch (node.type) {
-    case AST_NODE_TYPES.BlockStatement:
+export function* traverseParts(node: TSESTree.Node): IterableIterator<TSESTree.Node> {
+  // Check for field is present and assume it is a node
+  if ('argument' in node && node.argument) yield node.argument;
+  if ('arguments' in node && node.arguments) yield* node.arguments;
+  if ('properties' in node && node.properties) yield* node.properties;
+  if ('elements' in node && node.elements) {
+    for (const element of node.elements) {
+      if (element) yield element;
+    }
+  }
+  if ('key' in node && node.key) yield node.key;
+  if (
+    'value' in node &&
+    node.value &&
+    typeof node.value === 'object' &&
+    'type' in node.value
+  )
+    yield node.value;
+  if ('params' in node && node.params) yield* node.params;
+  if ('callee' in node && node.callee) yield node.callee;
+  if ('left' in node && node.left) yield node.left;
+  if ('right' in node && node.right) yield node.right;
+  if ('object' in node && node.object) yield node.object;
+  if ('property' in node && node.property) yield node.property;
+  if ('declarations' in node && node.declarations) yield* node.declarations;
+  if ('expression' in node && node.expression && node.expression !== true)
+    yield node.expression;
+  if ('init' in node && node.init) yield node.init;
+  if ('id' in node && node.id) yield node.id;
+  if ('body' in node && node.body) {
+    if (Array.isArray(node.body)) {
       yield* node.body;
-      break;
-    case AST_NODE_TYPES.ArrowFunctionExpression:
-    case AST_NODE_TYPES.FunctionExpression:
-    case AST_NODE_TYPES.FunctionDeclaration:
-      yield* node.params;
+    } else {
+      yield node.body;
+    }
+  }
+}
 
-      if (node.body.type === AST_NODE_TYPES.BlockStatement) {
-        yield* node.body.body;
-      } else {
-        yield node.body;
-      }
-      break;
-    default:
-      // Check for field is present and assume it is a node
-      if ('argument' in node && node.argument) yield node.argument;
-      if ('arguments' in node && node.arguments) yield* node.arguments;
-      if ('properties' in node && node.properties) yield* node.properties;
-      if ('elements' in node && node.elements) {
-        for (const element of node.elements) {
-          if (element) yield element;
-        }
-      }
-      if ('key' in node && node.key) yield node.key;
-      if (
-        'value' in node &&
-        node.value &&
-        typeof node.value === 'object' &&
-        'type' in node.value
-      )
-        yield node.value;
-      if ('params' in node && node.params) yield* node.params;
-      if ('callee' in node && node.callee) yield node.callee;
-      if ('left' in node && node.left) yield node.left;
-      if ('right' in node && node.right) yield node.right;
-      if ('object' in node && node.object) yield node.object;
-      if ('property' in node && node.property) yield node.property;
-      if ('expression' in node && node.expression && node.expression !== true)
-        yield node.expression;
-      break;
+/**
+ * Iterates on all nodes.
+ * @param node Current node.
+ * @yields Nodes in the tree.
+ */
+export function* traversePartsDeep(node: TSESTree.Node): IterableIterator<TSESTree.Node> {
+  for (const part of traverseParts(node)) {
+    yield part;
+    yield* traversePartsDeep(part);
+  }
+}
+
+/**
+ * Traverses the tree and adds the parent node.
+ * @param node Current node.
+ */
+export function applyParent(node: TSESTree.Node): void {
+  for (const part of traverseParts(node)) {
+    part.parent = node;
+    applyParent(part);
   }
 }

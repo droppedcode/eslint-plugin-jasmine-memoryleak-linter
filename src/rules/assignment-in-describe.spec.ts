@@ -7,7 +7,20 @@ const ruleTester = new ESLintUtils.RuleTester({
 });
 
 ruleTester.run('assignment-in-describe', assignmentInDescribeRule, {
-  valid: [],
+  valid: [
+    `
+describe('test-describe-let', () => {
+  let a;
+  function init() {
+    a = {};
+  }
+  afterEach(() => {
+    a = undefined;
+  });
+  call(() => a);
+});
+`,
+  ],
   invalid: [
     {
       code: `
@@ -31,7 +44,7 @@ afterEach(() => { a = undefined; });
           messageId: 'assignmentInDescribe',
           suggestions: [
             {
-              messageId: 'assignmentInDescribeBeforeAfterEach',
+              messageId: 'assignmentInDescribeBeforeAfterX',
               output: `
 describe('test-describe-let', () => {
   let a;
@@ -43,7 +56,7 @@ afterEach(() => { a = undefined; });
 `,
             },
             {
-              messageId: 'assignmentInDescribeBeforeAfterAll',
+              messageId: 'assignmentInDescribeBeforeAfterX',
               output: `
 describe('test-describe-let', () => {
   let a;
@@ -80,7 +93,7 @@ afterEach(() => { a = undefined; });
           messageId: 'assignmentInDescribe',
           suggestions: [
             {
-              messageId: 'assignmentInDescribeBeforeAfterEach',
+              messageId: 'assignmentInDescribeBeforeAfterX',
               output: `
 describe('test-describe-var', () => {
   var a;
@@ -92,7 +105,7 @@ afterEach(() => { a = undefined; });
 `,
             },
             {
-              messageId: 'assignmentInDescribeBeforeAfterAll',
+              messageId: 'assignmentInDescribeBeforeAfterX',
               output: `
 describe('test-describe-var', () => {
   var a;
@@ -123,8 +136,8 @@ describe('test-describe-has-many-before', () => {
 describe('test-describe-has-many-before', () => {
   var a;
   
-  beforeEach(() => { a = {};
-code(); });
+  beforeEach(() => { code();
+a = {}; });
   beforeEach(() => { code(); });
   beforeAll(() => { code(); });
   beforeAll(() => { code(); });
@@ -137,13 +150,13 @@ afterEach(() => { a = undefined; });
           messageId: 'assignmentInDescribe',
           suggestions: [
             {
-              messageId: 'assignmentInDescribeBeforeAfterEach',
+              messageId: 'assignmentInDescribeBeforeAfterX',
               output: `
 describe('test-describe-has-many-before', () => {
   var a;
   
-  beforeEach(() => { a = {};
-code(); });
+  beforeEach(() => { code();
+a = {}; });
   beforeEach(() => { code(); });
   beforeAll(() => { code(); });
   beforeAll(() => { code(); });
@@ -153,15 +166,15 @@ afterEach(() => { a = undefined; });
 `,
             },
             {
-              messageId: 'assignmentInDescribeBeforeAfterAll',
+              messageId: 'assignmentInDescribeBeforeAfterX',
               output: `
 describe('test-describe-has-many-before', () => {
   var a;
   
   beforeEach(() => { code(); });
   beforeEach(() => { code(); });
-  beforeAll(() => { a = {};
-code(); });
+  beforeAll(() => { code();
+a = {}; });
   beforeAll(() => { code(); });
 afterAll(() => { a = undefined; });
   call(() => a);
@@ -202,7 +215,7 @@ a = undefined; });
           messageId: 'assignmentInDescribe',
           suggestions: [
             {
-              messageId: 'assignmentInDescribeBeforeAfterEach',
+              messageId: 'assignmentInDescribeBeforeAfterX',
               output: `
 describe('test-describe-has-many-after', () => {
   var a;
@@ -218,7 +231,7 @@ a = undefined; });
 `,
             },
             {
-              messageId: 'assignmentInDescribeBeforeAfterAll',
+              messageId: 'assignmentInDescribeBeforeAfterX',
               output: `
 describe('test-describe-has-many-after', () => {
   var a;
@@ -234,6 +247,22 @@ a = undefined; });
 `,
             },
           ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-let', () => {
+  let a;
+  function init() {
+    a = {};
+  }
+  call(() => a);
+});
+`,
+      errors: [
+        {
+          messageId: 'assignmentInDescribeTooComplex',
         },
       ],
     },

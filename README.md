@@ -25,6 +25,18 @@ To configure the ESLint use the usual way:
 }
 ```
 
+or use predefined configuration
+
+```json
+{
+  // ...
+  "extends": [
+    // ...
+    "@droppedcode/eslint-plugin-jasmine-memoryleak-linter/recommended"
+  ]
+}
+```
+
 ## Rules
 
 All rules has a built in fix, but usually gives multiple suggestions to how to solve the issue.
@@ -296,4 +308,4 @@ To try it out open the samples folder, do not run it from the main folder, becau
 
 - "var" declarations in certain situations (when it is not used like a "let") can break some logics.
 - When using "Move declarations to the "it" block(s)", the fix will unnecessarily move it to blocks that does not capture the variable.
-- Missing options to configure rules.
+- Missing (partial) options to configure rules.

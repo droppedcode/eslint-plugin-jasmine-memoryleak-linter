@@ -43,7 +43,8 @@ function fixToDereference(
       fixer,
       after,
       cleanup,
-      () => true
+      undefined,
+      'after'
     );
   } else {
     return insertToCallLastFunctionArgument(
@@ -57,7 +58,7 @@ function fixToDereference(
           (isCallExpressionWithName(node.expression, 'beforeEach') ||
             isCallExpressionWithName(node.expression, 'beforeAll') ||
             isCallExpressionWithName(node.expression, 'afterEach') ||
-            isCallExpressionWithName(node.expression, 'afterAll')))
+            isCallExpressionWithName(node.expression, 'afterAll'))) ? 'after' : undefined
     );
   }
 }
@@ -142,7 +143,8 @@ export function createRule(
                   fixer,
                   dereferenceSiblings[dereferenceSiblings.length - 1],
                   name + ' = undefined;',
-                  () => true
+                  undefined,
+                  'after'
                 ) ?? fixer.insertTextAfter(child, ''),
             });
 
@@ -155,7 +157,8 @@ export function createRule(
                   fixer,
                   dereferenceSiblings[dereferenceSiblings.length - 1],
                   name + ' = undefined;',
-                  () => true
+                  undefined,
+                  'after'                  
                 ) ?? fixer.insertTextAfter(child, ''),
               suggest: suggestions,
             });

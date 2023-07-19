@@ -41,7 +41,7 @@ export function isCallExpressionWithName<
   TName extends string
 >(
   node: T,
-  name: TName
+  name: TName | TName[]
   // eslint-disable-next-line jsdoc/require-jsdoc
 ): node is T & TSESTree.CallExpression & { callee: { name: TName } } {
   return isCallExpression(node) && isNameIdentifier(node.callee, name);
@@ -127,13 +127,21 @@ export function closestCallExpression(
  */
 export function closestCallExpressionIfName<TName extends string>(
   node: TSESTree.Node,
-  name: TName
+  name: TName | TName[]
   // eslint-disable-next-line jsdoc/require-jsdoc
 ): (TSESTree.CallExpression & { callee: { name: TName } }) | undefined {
   const call = closestNodeOfType(node, AST_NODE_TYPES.CallExpression);
   if (!call) return;
+  if (!isNameIdentifier(call.callee)) return;
 
-  return isCallExpressionWithName(call, name) ? call : undefined;
+  const callee = call.callee.name;
+
+  return (
+    typeof name === 'string' ? callee === name : name.some((s) => callee === s)
+  )
+    ? // eslint-disable-next-line jsdoc/require-jsdoc
+      <TSESTree.CallExpression & { callee: { name: TName } }>call
+    : undefined;
 }
 
 /**
@@ -163,7 +171,7 @@ export function* getBodyNodes(
 export function* getBodyNodesReversed(
   node: TSESTree.FunctionLike
 ): IterableIterator<TSESTree.Node> {
-  if (!node.body) return;
+  if (!node?.body) return;
 
   if (node.body.type === AST_NODE_TYPES.BlockStatement) {
     for (let i = node.body.body.length - 1; i >= 0; i--) {
@@ -206,13 +214,16 @@ export function isNameIdentifier<
   TName extends string
 >(
   node: TNode,
-  name?: TName
+  name?: TName | TName[]
   // eslint-disable-next-line jsdoc/require-jsdoc
 ): node is TNode & TSESTree.Identifier & { name: TName } {
   return (
     node.type === AST_NODE_TYPES.Identifier &&
     'name' in node &&
-    (name === undefined || node.name === name)
+    (name === undefined ||
+      (typeof name === 'string'
+        ? node.name === name
+        : name.some((s) => node.name === s)))
   );
 }
 

@@ -9,15 +9,20 @@ import { isCallExpression } from './node-utils';
  * @param fixer Fixer for the problem.
  * @param node Node to work on.
  * @param content Content to prepend.
- * @param skipPredicate Predicate to find the node after insertion should happen, this will test all nodes and insert after the last true result.
+ * @param placementCheck Function to determine the placement relative to a node.
+ * @param defaultPlacement Default placement.
  * @returns Fix for the prepend.
  */
-export function insertToCallLastFunctionArgument<MessageIds extends string>(
-  context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
+export function insertToCallLastFunctionArgument<
+  MessageIds extends string,
+  Options
+>(
+  context: Readonly<TSESLint.RuleContext<MessageIds, Partial<Options>[]>>,
   fixer: TSESLint.RuleFixer,
   node: TSESTree.CallExpression | CapturingNode,
   content: string,
-  skipPredicate?: (node: TSESTree.Node) => boolean
+  placementCheck?: (node: TSESTree.Node) => 'before' | 'after' | undefined,
+  defaultPlacement: 'before' | 'after' = 'after'
 ): TSESLint.RuleFix | undefined {
   let body: TSESTree.BlockStatement | TSESTree.Expression;
 
@@ -38,6 +43,8 @@ export function insertToCallLastFunctionArgument<MessageIds extends string>(
   if (isCallExpression(body)) {
     const lastArg = body.arguments[body.arguments.length - 1];
 
+    if (!lastArg) return undefined;
+
     body =
       lastArg.type === AST_NODE_TYPES.SpreadElement
         ? lastArg.argument
@@ -54,27 +61,48 @@ export function insertToCallLastFunctionArgument<MessageIds extends string>(
   }
 
   if (body.type !== AST_NODE_TYPES.BlockStatement) {
+    let placement = defaultPlacement;
+    if (placementCheck) {
+      const value = placementCheck(body);
+      if (value) {
+        placement = value;
+      }
+    }
     return fixer.replaceText(
       body,
-      '{ ' + context.getSourceCode().getText(body) + ';\n' + content + ' }'
+      placement === 'before'
+        ? '{ ' + content + '\n' + context.getSourceCode().getText(body) + '; }'
+        : '{ ' + context.getSourceCode().getText(body) + ';\n' + content + ' }'
     );
   } else {
     if (body.body.length === 0) {
       return fixer.replaceText(body, '{ ' + content + ' }');
     } else {
-      let afterNode;
-      if (skipPredicate) {
+      let placementTarget;
+      let placementType = defaultPlacement;
+      if (placementCheck) {
         for (const n of body.body) {
-          if (skipPredicate(n)) {
-            afterNode = n;
+          const value = placementCheck(n);
+          if (value) {
+            placementTarget = n;
+            placementType = value;
+
+            if (value === 'before') break;
           }
         }
       }
 
-      if (afterNode) {
-        return fixer.insertTextAfter(afterNode, '\n' + content);
+      if (placementTarget) {
+        return placementType === 'before'
+          ? fixer.insertTextBefore(placementTarget, content + '\n')
+          : fixer.insertTextAfter(placementTarget, '\n' + content);
       } else {
-        return fixer.insertTextBefore(body.body[0], content + '\n');
+        return placementType === 'before'
+          ? fixer.insertTextBefore(body.body[0], content + '\n')
+          : fixer.insertTextAfter(
+              body.body[body.body.length - 1],
+              '\n' + content
+            );
       }
     }
   }

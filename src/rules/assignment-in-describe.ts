@@ -1,10 +1,12 @@
 import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
 import { ReportSuggestionArray } from '@typescript-eslint/utils/dist/ts-eslint';
 
+import { RuleOptions, defaultRuleOptions } from './options';
 import { findDeclarator, hasCleanup, isCaptured } from '../utils/common';
 import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
 import {
   closestCallExpressionIfName,
+  closestNodeOfTypes,
   isCallExpressionWithName,
   isNameIdentifier,
   isNodeOfType,
@@ -13,28 +15,38 @@ import {
 
 type MessageIds =
   | 'assignmentInDescribe'
-  | 'assignmentInDescribeBeforeAfterAll'
-  | 'assignmentInDescribeBeforeAfterEach';
+  | 'assignmentInDescribeBeforeAfterX'
+  | 'assignmentInDescribeTooComplex';
+
+export type AssignmentInDescribeRuleOptions = RuleOptions;
+
+type Context = Readonly<
+  TSESLint.RuleContext<MessageIds, Partial<AssignmentInDescribeRuleOptions>[]>
+>;
 
 /**
  * Fixes the declaration by moving initialization to the "beforeEach" and removing to "afterEach" calls.
  * @param context Rule context.
  * @param fixer Fixer for the problem.
+ * @param options Rule options.
  * @param node Node to work on.
  * @param describe Describe node.
  * @param siblingBefore Sibling beforeEach node, if any.
  * @param siblingAfters Sibling afterEach nodes, if any.
- * @param suffix Suffix of the each commands.
+ * @param beforeName Name of the initialization function name.
+ * @param afterName Name of the unreference function name.
  * @yields Fixes for the problem.
  */
 function* fixMoveToBeforeAfter(
-  context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
+  context: Context,
   fixer: TSESLint.RuleFixer,
+  options: AssignmentInDescribeRuleOptions,
   node: TSESTree.AssignmentExpression,
   describe: TSESTree.CallExpression,
   siblingBefore: TSESTree.CallExpression | undefined,
   siblingAfters: TSESTree.CallExpression[],
-  suffix: string
+  beforeName: string,
+  afterName: string
 ): IterableIterator<TSESLint.RuleFix> {
   if (!isNameIdentifier(node.left)) return;
 
@@ -52,6 +64,8 @@ function* fixMoveToBeforeAfter(
       (node) =>
         node.type === AST_NODE_TYPES.ExpressionStatement &&
         node.expression.type === AST_NODE_TYPES.AssignmentExpression
+          ? 'after'
+          : undefined
     );
     if (fix) {
       yield fix;
@@ -61,13 +75,21 @@ function* fixMoveToBeforeAfter(
       context,
       fixer,
       describe,
-      'before' + suffix + '(() => { ' + initialization + ' });',
+      beforeName + '(() => { ' + initialization + ' });',
       (node) =>
         node.type === AST_NODE_TYPES.VariableDeclaration ||
         (node.type === AST_NODE_TYPES.ExpressionStatement &&
-          (isCallExpressionWithName(node.expression, 'beforeEach') ||
-            isCallExpressionWithName(node.expression, 'beforeAll') ||
+          (isCallExpressionWithName(
+            node.expression,
+            options.initializationEachFunctionNames
+          ) ||
+            isCallExpressionWithName(
+              node.expression,
+              options.initializationAllFunctionNames
+            ) ||
             isNodeOfType(node.expression, AST_NODE_TYPES.AssignmentExpression)))
+          ? 'after'
+          : undefined
     );
     if (fix) {
       yield fix;
@@ -81,7 +103,8 @@ function* fixMoveToBeforeAfter(
         fixer,
         siblingAfters[siblingAfters.length - 1],
         cleanup,
-        () => true
+        undefined,
+        'after'
       );
       if (fix) {
         yield fix;
@@ -91,18 +114,32 @@ function* fixMoveToBeforeAfter(
         context,
         fixer,
         describe,
-        'after' + suffix + '(() => { ' + cleanup + ' });',
+        afterName + '(() => { ' + cleanup + ' });',
         (node) =>
           node.type === AST_NODE_TYPES.VariableDeclaration ||
           (node.type === AST_NODE_TYPES.ExpressionStatement &&
-            (isCallExpressionWithName(node.expression, 'beforeEach') ||
-              isCallExpressionWithName(node.expression, 'beforeAll') ||
-              isCallExpressionWithName(node.expression, 'afterEach') ||
-              isCallExpressionWithName(node.expression, 'afterAll') ||
+            (isCallExpressionWithName(
+              node.expression,
+              options.initializationEachFunctionNames
+            ) ||
+              isCallExpressionWithName(
+                node.expression,
+                options.initializationAllFunctionNames
+              ) ||
+              isCallExpressionWithName(
+                node.expression,
+                options.unreferenceEachFunctionNames
+              ) ||
+              isCallExpressionWithName(
+                node.expression,
+                options.unreferenceAllFunctionNames
+              ) ||
               isNodeOfType(
                 node.expression,
                 AST_NODE_TYPES.AssignmentExpression
               )))
+            ? 'after'
+            : undefined
       );
       if (fix) {
         yield fix;
@@ -117,16 +154,19 @@ function* fixMoveToBeforeAfter(
   );
 }
 
-export const assignmentInDescribeRule: TSESLint.RuleModule<MessageIds> = {
+export const assignmentInDescribeRule: TSESLint.RuleModule<
+  MessageIds,
+  Partial<AssignmentInDescribeRuleOptions>[]
+> = {
   defaultOptions: [],
   meta: {
     type: 'suggestion',
     messages: {
       assignmentInDescribe: 'There are assignments in a describe.',
-      assignmentInDescribeBeforeAfterEach:
-        'Initialize values in "beforeEach" and unreference in "afterEach".',
-      assignmentInDescribeBeforeAfterAll:
-        'Initialize values in "beforeAll" and unreference in "afterAll".',
+      assignmentInDescribeBeforeAfterX:
+        'Initialize values in "{{before}}" and unreference in "{{after}}".',
+      assignmentInDescribeTooComplex:
+        'There are assignments in a describe, logic too complex to fix.',
     },
     fixable: 'code',
     hasSuggestions: true,
@@ -136,8 +176,10 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<MessageIds> = {
     AssignmentExpression: (node): void => {
       if (!isNameIdentifier(node.left)) return;
 
+      const options = Object.assign({}, defaultRuleOptions, context.options[0]);
+
       const name = node.left.name;
-      const call = closestCallExpressionIfName(node, 'describe');
+      const call = closestCallExpressionIfName(node, options.functionNames);
 
       if (!call) return;
 
@@ -147,51 +189,91 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<MessageIds> = {
 
       if (!isCaptured(declarator)) return;
 
-      const siblingCalls = siblingNodesOfType(
-        node,
-        AST_NODE_TYPES.ExpressionStatement
-      ).map((m) => m.expression);
-      const siblingBeforeEach = <TSESTree.CallExpression[]>(
-        siblingCalls.filter((f) => isCallExpressionWithName(f, 'beforeEach'))
-      );
-      const siblingAfterEach = <TSESTree.CallExpression[]>(
-        siblingCalls.filter((f) => isCallExpressionWithName(f, 'afterEach'))
-      );
-      const siblingBeforeAll = <TSESTree.CallExpression[]>(
-        siblingCalls.filter((f) => isCallExpressionWithName(f, 'beforeAll'))
-      );
-      const siblingAfterAll = <TSESTree.CallExpression[]>(
-        siblingCalls.filter((f) => isCallExpressionWithName(f, 'afterAll'))
-      );
+      const closest = closestNodeOfTypes(node, [
+        AST_NODE_TYPES.CallExpression,
+        AST_NODE_TYPES.FunctionDeclaration,
+      ]);
+      if (closest && closest.type !== AST_NODE_TYPES.CallExpression) {
+        const siblingAfterEach = siblingNodesOfType(
+          closest,
+          AST_NODE_TYPES.ExpressionStatement
+        )
+          .map((m) => m.expression)
+          .filter((f) =>
+            isCallExpressionWithName(f, options.unreferenceEachFunctionNames)
+          );
 
-      const suggestions: ReportSuggestionArray<MessageIds> = [];
+        if (
+          hasCleanup(
+            <TSESTree.CallExpression[]>siblingAfterEach,
+            node.left.name
+          )
+        )
+          return;
 
-      addXSuggestion(
-        node,
-        suggestions,
-        context,
-        call,
-        siblingBeforeEach,
-        siblingAfterEach,
-        'Each'
-      );
+        return context.report({
+          node: node,
+          messageId: 'assignmentInDescribeTooComplex',
+        });
+      } else {
+        const siblingCalls = siblingNodesOfType(
+          node,
+          AST_NODE_TYPES.ExpressionStatement
+        ).map((m) => m.expression);
+        const siblingBeforeEach = <TSESTree.CallExpression[]>(
+          siblingCalls.filter((f) =>
+            isCallExpressionWithName(f, options.initializationEachFunctionNames)
+          )
+        );
+        const siblingAfterEach = <TSESTree.CallExpression[]>(
+          siblingCalls.filter((f) =>
+            isCallExpressionWithName(f, options.unreferenceEachFunctionNames)
+          )
+        );
+        const siblingBeforeAll = <TSESTree.CallExpression[]>(
+          siblingCalls.filter((f) =>
+            isCallExpressionWithName(f, options.initializationAllFunctionNames)
+          )
+        );
+        const siblingAfterAll = <TSESTree.CallExpression[]>(
+          siblingCalls.filter((f) =>
+            isCallExpressionWithName(f, options.unreferenceAllFunctionNames)
+          )
+        );
 
-      addXSuggestion(
-        node,
-        suggestions,
-        context,
-        call,
-        siblingBeforeAll,
-        siblingAfterAll,
-        'All'
-      );
+        const suggestions: ReportSuggestionArray<MessageIds> = [];
 
-      return context.report({
-        node: node,
-        messageId: 'assignmentInDescribe',
-        suggest: suggestions,
-        fix: suggestions[suggestions.length - 2].fix,
-      });
+        addXSuggestion(
+          node,
+          suggestions,
+          context,
+          options,
+          call,
+          siblingBeforeEach,
+          siblingAfterEach,
+          options.initializationEachFunctionNames[0],
+          options.unreferenceEachFunctionNames[0]
+        );
+
+        addXSuggestion(
+          node,
+          suggestions,
+          context,
+          options,
+          call,
+          siblingBeforeAll,
+          siblingAfterAll,
+          options.initializationAllFunctionNames[0],
+          options.unreferenceAllFunctionNames[0]
+        );
+
+        return context.report({
+          node: node,
+          messageId: 'assignmentInDescribe',
+          suggest: suggestions,
+          fix: suggestions[suggestions.length - 2].fix,
+        });
+      }
     },
   }),
 };
@@ -201,32 +283,39 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<MessageIds> = {
  * @param node Variable declaration.
  * @param suggestions Suggestions to push to.
  * @param context Rule context to use.
+ * @param options Rule options.
  * @param describe The describe where the variable is declared.
  * @param siblingBefore Sibling beforeX calls.
  * @param siblingAfter Sibling afterX calls.
- * @param suffix Function suffix to use.
+ * @param beforeName Name of the initialization function name.
+ * @param afterName Name of the unreference function name.
  */
 function addXSuggestion(
   node: TSESTree.AssignmentExpression,
   suggestions: TSESLint.ReportSuggestionArray<MessageIds>,
-  context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
+  context: Context,
+  options: AssignmentInDescribeRuleOptions,
   // eslint-disable-next-line jsdoc/require-jsdoc
-  describe: TSESTree.CallExpression & { callee: { name: 'describe' } },
+  describe: TSESTree.CallExpression & { callee: { name: string } },
   siblingBefore: TSESTree.CallExpression[],
   siblingAfter: TSESTree.CallExpression[],
-  suffix: string
+  beforeName: string,
+  afterName: string
 ): void {
   suggestions.push({
-    messageId: <MessageIds>('assignmentInDescribeBeforeAfter' + suffix),
+    messageId: 'assignmentInDescribeBeforeAfterX',
+    data: { before: beforeName, after: afterName },
     fix: (fixer) =>
       fixMoveToBeforeAfter(
         context,
         fixer,
+        options,
         node,
         describe,
         siblingBefore[0],
         siblingAfter,
-        suffix
+        beforeName,
+        afterName
       ),
   });
 }
