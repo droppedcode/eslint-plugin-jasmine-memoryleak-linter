@@ -36,15 +36,15 @@ describe('test', () => {
 
         const aUses = [...findUses(a)];
 
-        expect(aUses.length).toBe(5);
+        expect(aUses.length).toBe(3);
 
         const bUses = [...findUses(b)];
 
-        expect(bUses.length).toBe(3);
+        expect(bUses.length).toBe(2);
 
         const cUses = [...findUses(c)];
 
-        expect(cUses.length).toBe(3);
+        expect(cUses.length).toBe(2);
     });
 });
 

@@ -1,7 +1,6 @@
 import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
 
-import { CapturingNode } from './common';
-import { isCallExpression } from './node-utils';
+import { CapturingNode, getCallFunctionBody } from './common';
 
 /**
  * Prepend content to a call.
@@ -11,9 +10,10 @@ import { isCallExpression } from './node-utils';
  * @param content Content to prepend.
  * @param placementCheck Function to determine the placement relative to a node.
  * @param defaultPlacement Default placement.
- * @returns Fix for the prepend.
+ * @param fixOrderingOfAssignments Fix the ordering of assignments in the target block.
+ * @yields Fixes for the insert.
  */
-export function insertToCallLastFunctionArgument<
+export function* insertToCallLastFunctionArgument<
   MessageIds extends string,
   Options
 >(
@@ -22,43 +22,12 @@ export function insertToCallLastFunctionArgument<
   node: TSESTree.CallExpression | CapturingNode,
   content: string,
   placementCheck?: (node: TSESTree.Node) => 'before' | 'after' | undefined,
-  defaultPlacement: 'before' | 'after' = 'after'
-): TSESLint.RuleFix | undefined {
-  let body: TSESTree.BlockStatement | TSESTree.Expression;
+  defaultPlacement: 'before' | 'after' = 'after',
+  fixOrderingOfAssignments: boolean = false
+): IterableIterator<TSESLint.RuleFix> {
+  const body = getCallFunctionBody(node);
 
-  if (node.type === AST_NODE_TYPES.CallExpression) {
-    if (node.arguments.length < 1) return undefined;
-
-    const lastArg = node.arguments[node.arguments.length - 1];
-
-    body =
-      lastArg.type === AST_NODE_TYPES.SpreadElement
-        ? lastArg.argument
-        : lastArg;
-  } else {
-    body = node.body;
-  }
-
-  // Handle inject, fakeAsync... calls
-  if (isCallExpression(body)) {
-    const lastArg = body.arguments[body.arguments.length - 1];
-
-    if (!lastArg) return undefined;
-
-    body =
-      lastArg.type === AST_NODE_TYPES.SpreadElement
-        ? lastArg.argument
-        : lastArg;
-  }
-
-  if (body.type !== AST_NODE_TYPES.BlockStatement && 'body' in body) {
-    if (body.body.type === AST_NODE_TYPES.ClassBody) {
-      // This should not happen...
-      return undefined;
-    } else {
-      body = body.body;
-    }
-  }
+  if (!body) return;
 
   if (body.type !== AST_NODE_TYPES.BlockStatement) {
     let placement = defaultPlacement;
@@ -68,7 +37,7 @@ export function insertToCallLastFunctionArgument<
         placement = value;
       }
     }
-    return fixer.replaceText(
+    yield fixer.replaceText(
       body,
       placement === 'before'
         ? '{ ' + content + '\n' + context.getSourceCode().getText(body) + '; }'
@@ -76,7 +45,7 @@ export function insertToCallLastFunctionArgument<
     );
   } else {
     if (body.body.length === 0) {
-      return fixer.replaceText(body, '{ ' + content + ' }');
+      yield fixer.replaceText(body, '{ ' + content + ' }');
     } else {
       let placementTarget;
       let placementType = defaultPlacement;
@@ -93,17 +62,21 @@ export function insertToCallLastFunctionArgument<
       }
 
       if (placementTarget) {
-        return placementType === 'before'
+        yield placementType === 'before'
           ? fixer.insertTextBefore(placementTarget, content + '\n')
           : fixer.insertTextAfter(placementTarget, '\n' + content);
       } else {
-        return placementType === 'before'
+        yield placementType === 'before'
           ? fixer.insertTextBefore(body.body[0], content + '\n')
           : fixer.insertTextAfter(
               body.body[body.body.length - 1],
               '\n' + content
             );
       }
+
+      // if (fixOrderingOfAssignments) {
+      //   yield* reorderAssignementStatementsIfUsageIsMixedUp(context, fixer, body);
+      // }
     }
   }
 }

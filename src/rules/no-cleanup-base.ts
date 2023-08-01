@@ -19,6 +19,17 @@ type MessageIds =
   | 'assignmentInCleanupAdd'
   | 'assignmentInCleanupReplace';
 
+export type CleanupRuleOptions = {
+  /** Names of the functions that can initialize values. */
+  initializationFunctionNames: string[],
+  /** Names of the functions that can unreference values. */
+  unreferenceFunctionNames: string[],
+};
+
+type Context = Readonly<
+  TSESLint.RuleContext<MessageIds, Partial<CleanupRuleOptions>[]>
+>;
+
 /**
  * Fixes the declaration by add dereference to "afterX" calls.
  * @param context Rule context.
@@ -27,18 +38,18 @@ type MessageIds =
  * @param describe Describe node.
  * @param after AfterX node, if any.
  * @param dereferenceMethod Dereference method name.
- * @returns Fix for the problem.
+ * @yields Fix for the problem.
  */
-function fixToDereference(
-  context: Readonly<TSESLint.RuleContext<MessageIds, []>>,
+function* fixToDereference(
+  context: Context,
   fixer: TSESLint.RuleFixer,
   cleanup: string,
   describe: TSESTree.CallExpression,
   after: TSESTree.CallExpression | undefined,
   dereferenceMethod: string
-): TSESLint.RuleFix | undefined {
+): IterableIterator<TSESLint.RuleFix> {
   if (after) {
-    return insertToCallLastFunctionArgument(
+    yield* insertToCallLastFunctionArgument(
       context,
       fixer,
       after,
@@ -47,53 +58,54 @@ function fixToDereference(
       'after'
     );
   } else {
-    return insertToCallLastFunctionArgument(
+    yield* insertToCallLastFunctionArgument(
       context,
       fixer,
       describe,
       dereferenceMethod + '(() => { ' + cleanup + ' });',
       (node) =>
         node.type === AST_NODE_TYPES.VariableDeclaration ||
-        (node.type === AST_NODE_TYPES.ExpressionStatement &&
-          (isCallExpressionWithName(node.expression, 'beforeEach') ||
-            isCallExpressionWithName(node.expression, 'beforeAll') ||
-            isCallExpressionWithName(node.expression, 'afterEach') ||
-            isCallExpressionWithName(node.expression, 'afterAll'))) ? 'after' : undefined
+          (node.type === AST_NODE_TYPES.ExpressionStatement &&
+            (isCallExpressionWithName(node.expression, 'beforeEach') ||
+              isCallExpressionWithName(node.expression, 'beforeAll') ||
+              isCallExpressionWithName(node.expression, 'afterEach') ||
+              isCallExpressionWithName(node.expression, 'afterAll'))) ? 'after' : undefined
     );
   }
 }
 
 /**
  * Create an each* rule.
- * @param assignmentMethod Name of the method which should assign the value.
- * @param dereferenceMethod Name of the method which should dereference the value.
+ * @param defaultRuleOptions Default rule options.
  * @param dereferenceInSameMethod Should the dereference be in the same method.
  * @returns The rule.
  */
 export function createRule(
-  assignmentMethod: string,
-  dereferenceMethod: string,
+  defaultRuleOptions: CleanupRuleOptions,
   dereferenceInSameMethod: boolean
-): TSESLint.RuleModule<MessageIds> {
+): TSESLint.RuleModule<MessageIds, Partial<CleanupRuleOptions>[]> {
   return {
     defaultOptions: [],
     meta: {
       type: 'suggestion',
       messages: {
         assignmentWithoutCleanup:
-          'There is assignment in "' +
-          assignmentMethod +
-          '" but no cleanup in "' +
-          dereferenceMethod +
-          '".',
+          'There is assignment in "{{before}}" but no cleanup in "{{after}}".',
         assignmentInCleanup:
-          'Last assignment in "' + dereferenceMethod + '" is not a cleanup.',
+          'Last assignment is not a cleanup.',
         assignmentInCleanupAdd: 'Add a cleanup assignment.',
         assignmentInCleanupReplace: 'Replace assignment to cleanup.',
       },
       fixable: 'code',
       hasSuggestions: true,
-      schema: [], // no options
+      schema: [{
+        type: 'object',
+        properties: {
+          initializationFunctionNames: { type: 'array', items: { type: 'string' } },
+          unreferenceFunctionNames: { type: 'array', items: { type: 'string' } }
+        },
+        additionalProperties: false
+      }],
     },
     create: (context) => ({
       AssignmentExpression: (node): void => {
@@ -103,7 +115,8 @@ export function createRule(
 
         const name = node.left.name;
 
-        const call = closestCallExpressionIfName(node, assignmentMethod);
+        const options = Object.assign({}, defaultRuleOptions, context.options[0]);
+        const call = closestCallExpressionIfName(node, options.initializationFunctionNames);
 
         if (!call) return;
 
@@ -112,14 +125,18 @@ export function createRule(
         // Local declaration
         if (findDeclarator(name, node, (n) => n === call)) return;
 
-        const dereferenceSiblings = dereferenceInSameMethod ? [call] : siblingNodesOfType(
+        const dereferenceSiblings = siblingNodesOfType(
           call,
           AST_NODE_TYPES.ExpressionStatement,
           (n) =>
-            isCallExpressionWithName(n.expression, dereferenceMethod) &&
+            isCallExpressionWithName(n.expression, options.unreferenceFunctionNames) &&
             n.expression.arguments.length > 0 &&
             n.expression.arguments[n.expression.arguments.length - 1]['body']
         ).map((m) => m.expression as TSESTree.CallExpression);
+
+        if (dereferenceInSameMethod) {
+          dereferenceSiblings.splice(0, 0, call);
+        }
 
         const child = getLastAssignment(dereferenceSiblings, name);
 
@@ -158,7 +175,7 @@ export function createRule(
                   dereferenceSiblings[dereferenceSiblings.length - 1],
                   name + ' = undefined;',
                   undefined,
-                  'after'                  
+                  'after'
                 ) ?? fixer.insertTextAfter(child, ''),
               suggest: suggestions,
             });
@@ -172,8 +189,14 @@ export function createRule(
         const parent = closestCallExpression(call.parent);
         if (!parent) throw new Error('Missing parent call.');
 
+        const afterName = options.unreferenceFunctionNames[options.initializationFunctionNames.indexOf(call.callee.name)] ?? options.unreferenceFunctionNames[0];
+
         return context.report({
           messageId: 'assignmentWithoutCleanup',
+          data: {
+            before: call.callee.name,
+            after: afterName
+          },
           node: node,
           fix: (fixer) =>
             fixToDereference(
@@ -182,7 +205,7 @@ export function createRule(
               name + ' = undefined;',
               parent,
               dereferenceSiblings[dereferenceSiblings.length - 1],
-              dereferenceMethod
+              afterName
             ) ?? fixer.insertTextAfter(parent, ''),
           suggest: [
             {
@@ -194,7 +217,7 @@ export function createRule(
                   name + ' = undefined;',
                   parent,
                   dereferenceSiblings[dereferenceSiblings.length - 1],
-                  dereferenceMethod
+                  afterName
                 ) ?? fixer.insertTextAfter(parent, ''),
             },
           ],

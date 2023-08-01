@@ -112,7 +112,7 @@ describe('test-describe-let', () => {
 });
 ```
 
-### declaration-in-describe (There are declarations in a describe which is used for initialization, but captured.)
+#### declaration-in-describe (There are declarations in a describe which is used for initialization, but captured.)
 
 Looks for cases where variables are declared and initialized within a "describe" method, but used only for initialization in an other describe:
 
@@ -134,6 +134,61 @@ describe('test-describe-let', () => {
     a.forEach(() => {});
   });
 });
+```
+
+#### Options
+
+```ts
+export type InDescribeRuleOptions = {
+  /** Names of the functions that the rule is looking for. */
+  functionNames: string[];
+  /** Names of the functions that can initialize values before all tests. */
+  initializationAllFunctionNames: string[];
+  /** Names of the functions that can initialize values before each test. */
+  initializationEachFunctionNames: string[];
+  /** Names of the functions that can unreference values before all tests. */
+  unreferenceAllFunctionNames: string[];
+  /** Names of the functions that can unreference values before each test. */
+  unreferenceEachFunctionNames: string[];
+  /** Names of the functions that can use the values. */
+  testFunctionNames: string[];
+  /** Prefer using initialization in all function. */
+  preferAll: boolean;
+};
+```
+
+The default options are a merge of jasmine and mocha naming convention, but there are separate configurations if that is preferred.
+
+```ts
+export const defaultJasmineInDescribeRuleOptions: InDescribeRuleOptions = {
+  functionNames: ['describe', 'fdescribe', 'xdescribe'],
+  initializationEachFunctionNames: ['beforeEach'],
+  initializationAllFunctionNames: ['beforeAll'],
+  unreferenceEachFunctionNames: ['afterEach'],
+  unreferenceAllFunctionNames: ['afterAll'],
+  testFunctionNames: ['it', 'fit', 'xit'],
+  preferAll: false,
+};
+
+export const defaultMochaInDescribeRuleOptions: InDescribeRuleOptions = {
+  functionNames: ['describe', 'fdescribe', 'xdescribe'],
+  initializationEachFunctionNames: ['beforeEach'],
+  initializationAllFunctionNames: ['before'],
+  unreferenceEachFunctionNames: ['afterEach'],
+  unreferenceAllFunctionNames: ['after'],
+  testFunctionNames: ['it', 'test', 'fit', 'xit'],
+  preferAll: false,
+};
+
+export const defaultInDescribeRuleOptions = {
+  functionNames: ['describe', 'fdescribe', 'xdescribe'],
+  initializationEachFunctionNames: ['beforeEach'],
+  initializationAllFunctionNames: ['beforeAll', 'before'],
+  unreferenceEachFunctionNames: ['afterEach'],
+  unreferenceAllFunctionNames: ['afterAll', 'after'],
+  testFunctionNames: ['it', 'test', 'fit', 'xit'],
+  preferAll: false,
+};
 ```
 
 ### assignment-in-describe (There are assignments in a describe.)
@@ -193,6 +248,10 @@ describe('test-describe-let', () => {
 });
 ```
 
+#### Options
+
+Same as declaration-in-describe rule.
+
 ### no-cleanup-before-each-rule (There is assignment in "beforeEach" but no cleanup in "afterEach".)
 
 Looks for cases when we assign a value to a variable in a beforeEach call, but there is no or the last assignment is not a dereference.
@@ -223,6 +282,17 @@ describe('test-describe-let', () => {
     a = undefined;
   });
 });
+```
+
+#### Options
+
+```ts
+export const defaultNoCleanupEachOptions = {
+    initializationFunctionNames: ['beforeEach'],
+    unreferenceFunctionNames: ['afterEach']
+};
+
+There are mocha and jasmine variant of the options.
 ```
 
 ### no-cleanup-before-all-rule (There is assignment in "beforeAll" but no cleanup in "afterAll".)
@@ -257,6 +327,17 @@ describe('test-describe-let', () => {
 });
 ```
 
+#### Options
+
+```ts
+export const defaultNoCleanupAllOptions = {
+    initializationFunctionNames: ['beforeAll', 'before'],
+    unreferenceFunctionNames: ['afterAll', 'after']
+};
+
+There are mocha and jasmine variant of the options.
+```
+
 ### no-cleanup-it-rule (There is assignment in "it" but no cleanup in "it".)
 
 Looks for cases when we assign a value to a variable in a beforeAll call, but there is no or the last assignment is not a dereference.
@@ -289,6 +370,18 @@ describe('test-describe-let', () => {
 });
 ```
 
+#### Options
+
+```ts
+export const defaultNoCleanupTestOptions = {
+    initializationFunctionNames: ['it', 'fit', 'xit', 'test'],
+    unreferenceFunctionNames: ['it', 'afterEach', 'afterAll', 'after'],
+};
+
+There are mocha and jasmine variant of the options.
+
+```
+
 ## How to build
 
 - download the source or clone it
@@ -306,6 +399,6 @@ To try it out open the samples folder, do not run it from the main folder, becau
 
 ## Known issues
 
-- "var" declarations in certain situations (when it is not used like a "let") can break some logics.
-- When using "Move declarations to the "it" block(s)", the fix will unnecessarily move it to blocks that does not capture the variable.
-- Missing (partial) options to configure rules.
+- "`var`" declarations in certain situations (when it is not used like a "`let`") can break some logics.
+- Mocha method suffixes are not supported e.g. `describe.only`.
+- Variable captures outside test methods can be problematic, e.g. using forEach in a describe to go through test data and call it on each members, or using test data in the names of it, describe blocks.

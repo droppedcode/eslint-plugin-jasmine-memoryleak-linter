@@ -512,19 +512,19 @@ describe('test-describe-has-many-before', () => {
   beforeEach(() => { code(); });
   beforeEach(() => { code(); });
   beforeAll(() => { code(); });
-  beforeAll(() => { code(); });
+  beforeAll(() => { a; });
   call(() => a);
 });
 `,
       output: `
 describe('test-describe-has-many-before', () => {
   var a;
-  beforeEach(() => { a = {};
-code(); });
   beforeEach(() => { code(); });
-  beforeAll(() => { code(); });
-  beforeAll(() => { code(); });
-afterEach(() => { a = undefined; });
+  beforeEach(() => { code(); });
+  beforeAll(() => { a = {};
+code(); });
+  beforeAll(() => { a; });
+afterAll(() => { a = undefined; });
   call(() => a);
 });
 `,
@@ -541,7 +541,7 @@ describe('test-describe-has-many-before', () => {
 code(); });
   beforeEach(() => { code(); });
   beforeAll(() => { code(); });
-  beforeAll(() => { code(); });
+  beforeAll(() => { a; });
 afterEach(() => { a = undefined; });
   call(() => a);
 });
@@ -556,7 +556,7 @@ describe('test-describe-has-many-before', () => {
   beforeEach(() => { code(); });
   beforeAll(() => { a = {};
 code(); });
-  beforeAll(() => { code(); });
+  beforeAll(() => { a; });
 afterAll(() => { a = undefined; });
   call(() => a);
 });
@@ -691,7 +691,7 @@ describe('test-describe-with-type', () => {
 `,
       output: `
 describe('test-describe-with-type', () => {
-  let a: string;
+  let a: string | undefined;
 beforeEach(() => { a = 'test'; });
 afterEach(() => { a = undefined; });
   call(() => a);
@@ -705,7 +705,7 @@ afterEach(() => { a = undefined; });
               messageId: 'declarationInDescribeBeforeAfterX',
               output: `
 describe('test-describe-with-type', () => {
-  let a: string;
+  let a: string | undefined;
 beforeEach(() => { a = 'test'; });
 afterEach(() => { a = undefined; });
   call(() => a);
@@ -716,7 +716,7 @@ afterEach(() => { a = undefined; });
               messageId: 'declarationInDescribeBeforeAfterX',
               output: `
 describe('test-describe-with-type', () => {
-  let a: string;
+  let a: string | undefined;
 beforeAll(() => { a = 'test'; });
 afterAll(() => { a = undefined; });
   call(() => a);
@@ -736,7 +736,7 @@ describe('test-describe-object-init', () => {
 `,
       output: `
 describe('test-describe-object-init', () => {
-  let a: string;
+  let a: string | undefined;
 beforeEach(() => { a = 'test' as string; });
 afterEach(() => { a = undefined; });
   call(() => code({ a }));
@@ -750,7 +750,7 @@ afterEach(() => { a = undefined; });
               messageId: 'declarationInDescribeBeforeAfterX',
               output: `
 describe('test-describe-object-init', () => {
-  let a: string;
+  let a: string | undefined;
 beforeEach(() => { a = 'test' as string; });
 afterEach(() => { a = undefined; });
   call(() => code({ a }));
@@ -761,7 +761,7 @@ afterEach(() => { a = undefined; });
               messageId: 'declarationInDescribeBeforeAfterX',
               output: `
 describe('test-describe-object-init', () => {
-  let a: string;
+  let a: string | undefined;
 beforeAll(() => { a = 'test' as string; });
 afterAll(() => { a = undefined; });
   call(() => code({ a }));
@@ -820,6 +820,36 @@ describe('test-describe-init', () => {
   describe('test-describe-init-inner', () => {
     const init = createInit();
 init.forEach(() => {});
+    init.forEach(() => {});
+    init.forEach(() => {});
+  });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterXConst',
+              output: `
+describe('test-describe-init', () => {
+  let init;
+beforeEach(() => { init = []; });
+afterEach(() => { init = undefined; });
+  describe('test-describe-init-inner', () => {
+    init.forEach(() => {});
+    init.forEach(() => {});
+    init.forEach(() => {});
+  });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterXConst',
+              output: `
+describe('test-describe-init', () => {
+  let init;
+beforeAll(() => { init = []; });
+afterAll(() => { init = undefined; });
+  describe('test-describe-init-inner', () => {
+    init.forEach(() => {});
     init.forEach(() => {});
     init.forEach(() => {});
   });
@@ -907,6 +937,46 @@ init.forEach(() => {});
 });
 `,
             },
+            {
+              messageId: 'declarationInDescribeBeforeAfterXConst',
+              output: `
+describe('test-describe-init-fn', () => {
+  let init: Array | undefined;
+beforeEach(() => { init = []; });
+afterEach(() => { init = undefined; });
+  describe('test-describe-init-inner', () => {
+    init.forEach(() => {});
+    init.forEach(() => {});
+    init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+    init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+  });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterXConst',
+              output: `
+describe('test-describe-init-fn', () => {
+  let init: Array | undefined;
+beforeAll(() => { init = []; });
+afterAll(() => { init = undefined; });
+  describe('test-describe-init-inner', () => {
+    init.forEach(() => {});
+    init.forEach(() => {});
+    init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+    init.forEach(() => {});
+  });
+  describe('test-describe-init-inner', () => {
+  });
+});
+`,
+            },
           ],
         },
       ],
@@ -1010,6 +1080,119 @@ describe('test-describe-order-block', () => {
   });
 beforeAll(() => { a = {}; });
 afterAll(() => { a = undefined; });
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-fn-based-on-capture', () => {
+  let a = {};
+  describe('test-inner', () => {
+    before(() => {
+      const b = X.create(...[a]);
+    });
+  });
+});
+`,
+      output: `
+describe('test-describe-fn-based-on-capture', () => {
+  let a;
+before(() => { a = {}; });
+after(() => { a = undefined; });
+  describe('test-inner', () => {
+    before(() => {
+      const b = X.create(...[a]);
+    });
+  });
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfterX',
+              output: `
+describe('test-describe-fn-based-on-capture', () => {
+  let a;
+beforeEach(() => { a = {}; });
+afterEach(() => { a = undefined; });
+  describe('test-inner', () => {
+    before(() => {
+      const b = X.create(...[a]);
+    });
+  });
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterX',
+              output: `
+describe('test-describe-fn-based-on-capture', () => {
+  let a;
+before(() => { a = {}; });
+after(() => { a = undefined; });
+  describe('test-inner', () => {
+    before(() => {
+      const b = X.create(...[a]);
+    });
+  });
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('test-describe-with-assign', () => {
+  const a = {};
+  a.p = 1;
+  call(() => a);
+});
+`,
+      output: `
+describe('test-describe-with-assign', () => {
+  let a;
+beforeEach(() => { a = {};
+a.p = 1; });
+afterEach(() => { a = undefined; });
+  
+  call(() => a);
+});
+`,
+      errors: [
+        {
+          messageId: 'declarationInDescribe',
+          suggestions: [
+            {
+              messageId: 'declarationInDescribeBeforeAfterXConst',
+              output: `
+describe('test-describe-with-assign', () => {
+  let a;
+beforeEach(() => { a = {};
+a.p = 1; });
+afterEach(() => { a = undefined; });
+  
+  call(() => a);
+});
+`,
+            },
+            {
+              messageId: 'declarationInDescribeBeforeAfterXConst',
+              output: `
+describe('test-describe-with-assign', () => {
+  let a;
+beforeAll(() => { a = {};
+a.p = 1; });
+afterAll(() => { a = undefined; });
+  
+  call(() => a);
 });
 `,
             },

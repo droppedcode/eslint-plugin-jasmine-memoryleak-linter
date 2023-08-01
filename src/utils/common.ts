@@ -1,9 +1,10 @@
-import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
 
 import {
   closestNodeOfType,
   closestNodeOfTypes,
   getBodyNodesReversed,
+  isCallExpression,
   isNameIdentifier,
   isNodeOfType,
   isStatement,
@@ -304,12 +305,15 @@ function* findCapturesLookingForClosure(
         }
       }
       break;
+    case AST_NODE_TYPES.Property:
+      yield* findCapturesLookingForClosure(node.value, variable, candidate, yielded);
+      break;
     case AST_NODE_TYPES.ArrowFunctionExpression:
     case AST_NODE_TYPES.FunctionExpression:
     case AST_NODE_TYPES.FunctionDeclaration:
       // Argument overrides variable
       if (!node.params.some((s) => isNameIdentifier(s, variable.id.name))) {
-          yield* findCapturesLookingForClosure(node.body, variable, node, yielded);
+        yield* findCapturesLookingForClosure(node.body, variable, node, yielded);
       }
       break;
     default:
@@ -357,6 +361,9 @@ function* findUsesOfVariable(
         yield* findUsesOfVariable(node.body, variable);
       }
       break;
+    case AST_NODE_TYPES.Property:
+      yield* findUsesOfVariable(node.value, variable);
+      break;
     default:
       for (const descendant of traverseParts(node)) {
         yield* findUsesOfVariable(descendant, variable);
@@ -397,6 +404,7 @@ export function* traverseParts(node: TSESTree.Node): IterableIterator<TSESTree.N
   if ('declarations' in node && node.declarations) yield* node.declarations;
   if ('expression' in node && node.expression && node.expression !== true)
     yield node.expression;
+  if ('expressions' in node && node.expressions) yield* node.expressions;
   if ('init' in node && node.init) yield node.init;
   if ('id' in node && node.id) yield node.id;
   if ('body' in node && node.body) {
@@ -429,4 +437,157 @@ export function applyParent(node: TSESTree.Node): void {
     part.parent = node;
     applyParent(part);
   }
+}
+
+/**
+ * Checks the assignement statements if the usages are mixed up.
+ * @param block The block statement to reorder.
+ * @returns True if the statements are mixed up.
+ */
+export function isStatementsBasedOnAssignmentAndUsageMixedUp<TMessageIds extends string, TOptions>(
+  block: TSESTree.BlockStatement
+): boolean {
+  const currentList = block.body;
+  const newList: TSESTree.Statement[] = [];
+  const declarators: Map<TSESTree.Statement, TSESTree.VariableDeclarator | undefined> = new Map();
+
+  for (const statement of currentList) {
+    if (statement.type === AST_NODE_TYPES.ExpressionStatement && statement.expression.type === AST_NODE_TYPES.AssignmentExpression && isNameIdentifier(statement.expression.left)) {
+      if (!declarators.has(statement)) {
+        declarators.set(statement, findDeclarator(statement.expression.left.name, statement));
+      }
+
+      const declarator = declarators.get(statement);
+      if (!declarator) continue;
+
+      for (let i = 0; i < newList.length; i++) {
+        if (isUsed(declarator, newList[i])) {
+          return true;
+        }
+      }
+
+      newList.push(statement);
+    } else {
+      newList.push(statement);
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Reorders the assignement statements if the usages are mixed up.
+ * @param context The rule context.
+ * @param fixer The fixer used.
+ * @param block The block statement to reorder.
+ * @param additionalStatements Additional statements to insert.
+ * @yields Code fixes.
+ */
+export function* reorderStatementsBasedOnAssignmentAndUsage<TMessageIds extends string, TOptions>(
+  context: Readonly<
+    TSESLint.RuleContext<TMessageIds, Partial<TOptions>[]>
+  >,
+  fixer: TSESLint.RuleFixer,
+  block: TSESTree.BlockStatement,
+  ...additionalStatements: TSESTree.Statement[]
+): IterableIterator<TSESLint.RuleFix> {
+  let currentList = [...block.body, ...additionalStatements];
+  let newList: TSESTree.Statement[] = [];
+  const declarators: Map<TSESTree.Statement, TSESTree.VariableDeclarator | undefined> = new Map();
+
+  let hasChanges = additionalStatements.length > 0;
+
+  // We need to run multiple times for complex cases, limit the run count to the statement count
+  // If this is not enough, probably we have circular dependency
+  const maxRunCount = currentList.length;
+
+  for (let run = 0; run < maxRunCount; run++) {
+    let hasChangesInRun = false;
+
+    for (const statement of currentList) {
+      if (statement.type === AST_NODE_TYPES.ExpressionStatement && statement.expression.type === AST_NODE_TYPES.AssignmentExpression && isNameIdentifier(statement.expression.left)) {
+        if (!declarators.has(statement)) {
+          declarators.set(statement, findDeclarator(statement.expression.left.name, statement));
+        }
+
+        const declarator = declarators.get(statement);
+        if (!declarator) continue;
+
+        let isInserted = false;
+
+        for (let i = 0; i < newList.length; i++) {
+          if (isUsed(declarator, newList[i])) {
+            newList.splice(i, 0, statement);
+            isInserted = true;
+            hasChangesInRun = true;
+            hasChanges = true;
+            break;
+          }
+        }
+
+        if (!isInserted) {
+          newList.push(statement);
+        }
+      } else {
+        newList.push(statement);
+      }
+    }
+
+    if (hasChangesInRun) {
+      currentList = newList;
+      newList = [];
+    } else {
+      break;
+    }
+  }
+
+  if (hasChanges) {
+    yield fixer.replaceText(block, `{ ${newList.map(m => context.getSourceCode().getText(m)).join('\n')} }`);
+  }
+}
+
+/**
+ * Locate a call's last arguments body with statements.
+ * This is used to locate function calls statements like before, it...
+ * @param node Node to locate the body for.
+ * @returns The content of the call or undefined if not found.
+ */
+export function getCallFunctionBody(node: TSESTree.CallExpression | CapturingNode): TSESTree.BlockStatement | TSESTree.Expression | undefined {
+  let body: TSESTree.BlockStatement | TSESTree.Expression;
+
+  if (node.type === AST_NODE_TYPES.CallExpression) {
+    if (node.arguments.length < 1) return;
+
+    const lastArg = node.arguments[node.arguments.length - 1];
+
+    body =
+      lastArg.type === AST_NODE_TYPES.SpreadElement
+        ? lastArg.argument
+        : lastArg;
+  } else {
+    body = node.body;
+  }
+
+  // Handle inject, fakeAsync... calls
+  if (isCallExpression(body)) {
+    const lastArg = body.arguments[body.arguments.length - 1];
+
+    if (!lastArg) return;
+
+    body =
+      lastArg.type === AST_NODE_TYPES.SpreadElement
+        ? lastArg.argument
+        : lastArg;
+  }
+
+  if (body.type !== AST_NODE_TYPES.BlockStatement && 'body' in body) {
+    if (body.body.type === AST_NODE_TYPES.ClassBody) {
+      // This should not happen...
+      return;
+    } else {
+      body = body.body;
+    }
+  }
+
+  return body;
 }

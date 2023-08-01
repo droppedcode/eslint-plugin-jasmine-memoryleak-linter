@@ -128,7 +128,7 @@ describe('test-describe-has-many-before', () => {
   beforeEach(() => { code(); });
   beforeEach(() => { code(); });
   beforeAll(() => { code(); });
-  beforeAll(() => { code(); });
+  beforeAll(() => { a; });
   call(() => a);
 });
 `,
@@ -136,12 +136,12 @@ describe('test-describe-has-many-before', () => {
 describe('test-describe-has-many-before', () => {
   var a;
   
-  beforeEach(() => { code();
-a = {}; });
   beforeEach(() => { code(); });
-  beforeAll(() => { code(); });
-  beforeAll(() => { code(); });
-afterEach(() => { a = undefined; });
+  beforeEach(() => { code(); });
+  beforeAll(() => { code();
+a = {}; });
+  beforeAll(() => { a; });
+afterAll(() => { a = undefined; });
   call(() => a);
 });
 `,
@@ -159,7 +159,7 @@ describe('test-describe-has-many-before', () => {
 a = {}; });
   beforeEach(() => { code(); });
   beforeAll(() => { code(); });
-  beforeAll(() => { code(); });
+  beforeAll(() => { a; });
 afterEach(() => { a = undefined; });
   call(() => a);
 });
@@ -175,7 +175,7 @@ describe('test-describe-has-many-before', () => {
   beforeEach(() => { code(); });
   beforeAll(() => { code();
 a = {}; });
-  beforeAll(() => { code(); });
+  beforeAll(() => { a; });
 afterAll(() => { a = undefined; });
   call(() => a);
 });
