@@ -176,14 +176,14 @@ function getRootStatementsForVairableAnalysis(
     // With var we need function scope
     variable.parent.kind === 'var'
       ? <
-      | TSESTree.ArrowFunctionExpression
-      | TSESTree.FunctionExpression
-      | TSESTree.Program
-      >closestNodeOfTypes(variable, [
-        AST_NODE_TYPES.ArrowFunctionExpression,
-        AST_NODE_TYPES.FunctionExpression,
-        AST_NODE_TYPES.Program,
-      ])
+          | TSESTree.ArrowFunctionExpression
+          | TSESTree.FunctionExpression
+          | TSESTree.Program
+        >closestNodeOfTypes(variable, [
+          AST_NODE_TYPES.ArrowFunctionExpression,
+          AST_NODE_TYPES.FunctionExpression,
+          AST_NODE_TYPES.Program,
+        ])
       : closestNodeOfType(variable, AST_NODE_TYPES.BlockStatement);
 
   if (!root) return [];
@@ -223,7 +223,12 @@ export function* findCaptures(
   if (variable.id.type !== AST_NODE_TYPES.Identifier) return;
 
   for (const statement of getRootStatementsForVairableAnalysis(variable)) {
-    yield* findCapturesLookingForClosure(statement, <VariableDeclaratorWithIdentifier>variable, undefined, new Set());
+    yield* findCapturesLookingForClosure(
+      statement,
+      <VariableDeclaratorWithIdentifier>variable,
+      undefined,
+      new Set()
+    );
   }
 }
 
@@ -247,7 +252,10 @@ export function* findUses(
   if (variable.id.type !== AST_NODE_TYPES.Identifier) return;
 
   for (const statement of getRootStatementsForVairableAnalysis(variable)) {
-    yield* findUsesOfVariable(statement, <VariableDeclaratorWithIdentifier>variable);
+    yield* findUsesOfVariable(
+      statement,
+      <VariableDeclaratorWithIdentifier>variable
+    );
   }
 }
 
@@ -257,10 +265,18 @@ export function* findUses(
  * @param parent The parent to look in, if undefined uses the root of the declaration.
  * @returns True if the variable is captured.
  */
-export function isUsed(variable: TSESTree.VariableDeclarator, parent?: TSESTree.Node): boolean {
+export function isUsed(
+  variable: TSESTree.VariableDeclarator,
+  parent?: TSESTree.Node
+): boolean {
   if (variable.id.type !== AST_NODE_TYPES.Identifier) false;
 
-  return parent ? !findUsesOfVariable(parent, <VariableDeclaratorWithIdentifier>variable).next().done : !findUses(variable).next().done;
+  return parent
+    ? !findUsesOfVariable(
+        parent,
+        <VariableDeclaratorWithIdentifier>variable
+      ).next().done
+    : !findUses(variable).next().done;
 }
 
 /**
@@ -290,35 +306,62 @@ function* findCapturesLookingForClosure(
       break;
     case AST_NODE_TYPES.MemberExpression:
       // Ignore property
-      yield* findCapturesLookingForClosure(node.object, variable, candidate, yielded);
+      yield* findCapturesLookingForClosure(
+        node.object,
+        variable,
+        candidate,
+        yielded
+      );
       break;
     case AST_NODE_TYPES.BlockStatement:
       for (const child of node.body) {
         // Variable override
         if (
-          !(isNodeOfType(child, AST_NODE_TYPES.VariableDeclaration) &&
+          !(
+            isNodeOfType(child, AST_NODE_TYPES.VariableDeclaration) &&
             child.declarations.some(
               (s) => s !== variable && isNameIdentifier(s.id, variable.id.name)
-            ))
+            )
+          )
         ) {
-          yield* findCapturesLookingForClosure(child, variable, candidate, yielded);
+          yield* findCapturesLookingForClosure(
+            child,
+            variable,
+            candidate,
+            yielded
+          );
         }
       }
       break;
     case AST_NODE_TYPES.Property:
-      yield* findCapturesLookingForClosure(node.value, variable, candidate, yielded);
+      yield* findCapturesLookingForClosure(
+        node.value,
+        variable,
+        candidate,
+        yielded
+      );
       break;
     case AST_NODE_TYPES.ArrowFunctionExpression:
     case AST_NODE_TYPES.FunctionExpression:
     case AST_NODE_TYPES.FunctionDeclaration:
       // Argument overrides variable
       if (!node.params.some((s) => isNameIdentifier(s, variable.id.name))) {
-        yield* findCapturesLookingForClosure(node.body, variable, node, yielded);
+        yield* findCapturesLookingForClosure(
+          node.body,
+          variable,
+          node,
+          yielded
+        );
       }
       break;
     default:
       for (const descendant of traverseParts(node)) {
-        yield* findCapturesLookingForClosure(descendant, variable, candidate, yielded);
+        yield* findCapturesLookingForClosure(
+          descendant,
+          variable,
+          candidate,
+          yielded
+        );
       }
       break;
   }
@@ -333,21 +376,22 @@ function* findCapturesLookingForClosure(
  */
 function* findUsesOfVariable(
   node: TSESTree.Node,
-  variable: VariableDeclaratorWithIdentifier,
+  variable: VariableDeclaratorWithIdentifier
 ): IterableIterator<TSESTree.Identifier> {
   switch (node.type) {
     case AST_NODE_TYPES.Identifier:
-      if (node.name === variable.id.name)
-        yield node;
+      if (node.name === variable.id.name) yield node;
       break;
     case AST_NODE_TYPES.BlockStatement:
       for (const child of node.body) {
         // Variable override
         if (
-          !(isNodeOfType(child, AST_NODE_TYPES.VariableDeclaration) &&
+          !(
+            isNodeOfType(child, AST_NODE_TYPES.VariableDeclaration) &&
             child.declarations.some(
               (s) => s !== variable && isNameIdentifier(s.id, variable.id.name)
-            ))
+            )
+          )
         ) {
           yield* findUsesOfVariable(child, variable);
         }
@@ -364,6 +408,9 @@ function* findUsesOfVariable(
     case AST_NODE_TYPES.Property:
       yield* findUsesOfVariable(node.value, variable);
       break;
+    case AST_NODE_TYPES.MemberExpression:
+      yield* findUsesOfVariable(node.object, variable);
+      break;
     default:
       for (const descendant of traverseParts(node)) {
         yield* findUsesOfVariable(descendant, variable);
@@ -377,7 +424,9 @@ function* findUsesOfVariable(
  * @param node Current node.
  * @yields Nodes in the tree.
  */
-export function* traverseParts(node: TSESTree.Node): IterableIterator<TSESTree.Node> {
+export function* traverseParts(
+  node: TSESTree.Node
+): IterableIterator<TSESTree.Node> {
   // Check for field is present and assume it is a node
   if ('argument' in node && node.argument) yield node.argument;
   if ('arguments' in node && node.arguments) yield* node.arguments;
@@ -421,7 +470,9 @@ export function* traverseParts(node: TSESTree.Node): IterableIterator<TSESTree.N
  * @param node Current node.
  * @yields Nodes in the tree.
  */
-export function* traversePartsDeep(node: TSESTree.Node): IterableIterator<TSESTree.Node> {
+export function* traversePartsDeep(
+  node: TSESTree.Node
+): IterableIterator<TSESTree.Node> {
   for (const part of traverseParts(node)) {
     yield part;
     yield* traversePartsDeep(part);
@@ -444,17 +495,28 @@ export function applyParent(node: TSESTree.Node): void {
  * @param block The block statement to reorder.
  * @returns True if the statements are mixed up.
  */
-export function isStatementsBasedOnAssignmentAndUsageMixedUp<TMessageIds extends string, TOptions>(
-  block: TSESTree.BlockStatement
-): boolean {
+export function isStatementsBasedOnAssignmentAndUsageMixedUp<
+  TMessageIds extends string,
+  TOptions
+>(block: TSESTree.BlockStatement): boolean {
   const currentList = block.body;
   const newList: TSESTree.Statement[] = [];
-  const declarators: Map<TSESTree.Statement, TSESTree.VariableDeclarator | undefined> = new Map();
+  const declarators: Map<
+    TSESTree.Statement,
+    TSESTree.VariableDeclarator | undefined
+  > = new Map();
 
   for (const statement of currentList) {
-    if (statement.type === AST_NODE_TYPES.ExpressionStatement && statement.expression.type === AST_NODE_TYPES.AssignmentExpression && isNameIdentifier(statement.expression.left)) {
+    if (
+      statement.type === AST_NODE_TYPES.ExpressionStatement &&
+      statement.expression.type === AST_NODE_TYPES.AssignmentExpression &&
+      isNameIdentifier(statement.expression.left)
+    ) {
       if (!declarators.has(statement)) {
-        declarators.set(statement, findDeclarator(statement.expression.left.name, statement));
+        declarators.set(
+          statement,
+          findDeclarator(statement.expression.left.name, statement)
+        );
       }
 
       const declarator = declarators.get(statement);
@@ -483,17 +545,21 @@ export function isStatementsBasedOnAssignmentAndUsageMixedUp<TMessageIds extends
  * @param additionalStatements Additional statements to insert.
  * @yields Code fixes.
  */
-export function* reorderStatementsBasedOnAssignmentAndUsage<TMessageIds extends string, TOptions>(
-  context: Readonly<
-    TSESLint.RuleContext<TMessageIds, Partial<TOptions>[]>
-  >,
+export function* reorderStatementsBasedOnAssignmentAndUsage<
+  TMessageIds extends string,
+  TOptions
+>(
+  context: Readonly<TSESLint.RuleContext<TMessageIds, Partial<TOptions>[]>>,
   fixer: TSESLint.RuleFixer,
   block: TSESTree.BlockStatement,
   ...additionalStatements: TSESTree.Statement[]
 ): IterableIterator<TSESLint.RuleFix> {
   let currentList = [...block.body, ...additionalStatements];
   let newList: TSESTree.Statement[] = [];
-  const declarators: Map<TSESTree.Statement, TSESTree.VariableDeclarator | undefined> = new Map();
+  const declarators: Map<
+    TSESTree.Statement,
+    TSESTree.VariableDeclarator | undefined
+  > = new Map();
 
   let hasChanges = additionalStatements.length > 0;
 
@@ -505,9 +571,16 @@ export function* reorderStatementsBasedOnAssignmentAndUsage<TMessageIds extends 
     let hasChangesInRun = false;
 
     for (const statement of currentList) {
-      if (statement.type === AST_NODE_TYPES.ExpressionStatement && statement.expression.type === AST_NODE_TYPES.AssignmentExpression && isNameIdentifier(statement.expression.left)) {
+      if (
+        statement.type === AST_NODE_TYPES.ExpressionStatement &&
+        statement.expression.type === AST_NODE_TYPES.AssignmentExpression &&
+        isNameIdentifier(statement.expression.left)
+      ) {
         if (!declarators.has(statement)) {
-          declarators.set(statement, findDeclarator(statement.expression.left.name, statement));
+          declarators.set(
+            statement,
+            findDeclarator(statement.expression.left.name, statement)
+          );
         }
 
         const declarator = declarators.get(statement);
@@ -542,7 +615,10 @@ export function* reorderStatementsBasedOnAssignmentAndUsage<TMessageIds extends 
   }
 
   if (hasChanges) {
-    yield fixer.replaceText(block, `{ ${newList.map(m => context.getSourceCode().getText(m)).join('\n')} }`);
+    yield fixer.replaceText(
+      block,
+      `{ ${newList.map((m) => context.getSourceCode().getText(m)).join('\n')} }`
+    );
   }
 }
 
@@ -552,7 +628,9 @@ export function* reorderStatementsBasedOnAssignmentAndUsage<TMessageIds extends 
  * @param node Node to locate the body for.
  * @returns The content of the call or undefined if not found.
  */
-export function getCallFunctionBody(node: TSESTree.CallExpression | CapturingNode): TSESTree.BlockStatement | TSESTree.Expression | undefined {
+export function getCallFunctionBody(
+  node: TSESTree.CallExpression | CapturingNode
+): TSESTree.BlockStatement | TSESTree.Expression | undefined {
   let body: TSESTree.BlockStatement | TSESTree.Expression;
 
   if (node.type === AST_NODE_TYPES.CallExpression) {
