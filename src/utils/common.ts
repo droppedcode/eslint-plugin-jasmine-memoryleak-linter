@@ -176,14 +176,14 @@ function getRootStatementsForVairableAnalysis(
     // With var we need function scope
     variable.parent.kind === 'var'
       ? <
-          | TSESTree.ArrowFunctionExpression
-          | TSESTree.FunctionExpression
-          | TSESTree.Program
-        >closestNodeOfTypes(variable, [
-          AST_NODE_TYPES.ArrowFunctionExpression,
-          AST_NODE_TYPES.FunctionExpression,
-          AST_NODE_TYPES.Program,
-        ])
+      | TSESTree.ArrowFunctionExpression
+      | TSESTree.FunctionExpression
+      | TSESTree.Program
+      >closestNodeOfTypes(variable, [
+        AST_NODE_TYPES.ArrowFunctionExpression,
+        AST_NODE_TYPES.FunctionExpression,
+        AST_NODE_TYPES.Program,
+      ])
       : closestNodeOfType(variable, AST_NODE_TYPES.BlockStatement);
 
   if (!root) return [];
@@ -273,9 +273,9 @@ export function isUsed(
 
   return parent
     ? !findUsesOfVariable(
-        parent,
-        <VariableDeclaratorWithIdentifier>variable
-      ).next().done
+      parent,
+      <VariableDeclaratorWithIdentifier>variable
+    ).next().done
     : !findUses(variable).next().done;
 }
 
@@ -411,6 +411,9 @@ function* findUsesOfVariable(
     case AST_NODE_TYPES.MemberExpression:
       yield* findUsesOfVariable(node.object, variable);
       break;
+    case AST_NODE_TYPES.AssignmentExpression:
+      yield* findUsesOfVariable(node.right, variable);
+      break;
     default:
       for (const descendant of traverseParts(node)) {
         yield* findUsesOfVariable(descendant, variable);
@@ -495,10 +498,7 @@ export function applyParent(node: TSESTree.Node): void {
  * @param block The block statement to reorder.
  * @returns True if the statements are mixed up.
  */
-export function isStatementsBasedOnAssignmentAndUsageMixedUp<
-  TMessageIds extends string,
-  TOptions
->(block: TSESTree.BlockStatement): boolean {
+export function isStatementsBasedOnAssignmentAndUsageMixedUp(block: TSESTree.BlockStatement): boolean {
   const currentList = block.body;
   const newList: TSESTree.Statement[] = [];
   const declarators: Map<

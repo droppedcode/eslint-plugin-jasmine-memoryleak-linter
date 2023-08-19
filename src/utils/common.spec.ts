@@ -20,6 +20,7 @@ describe('test', () => {
   A.fn({ p: [f({ c })] });
   beforeEach(() => T.f({ p: [i({ a })] }));
   d.a = 'no';
+  d.a();
 });
 `,
       {
