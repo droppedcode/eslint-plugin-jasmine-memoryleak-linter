@@ -1,7 +1,16 @@
-import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
-import { ReportSuggestionArray } from '@typescript-eslint/utils/dist/ts-eslint';
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
+import {
+  ReportSuggestionArray,
+  RuleContext,
+  RuleFix,
+  RuleFixer,
+  RuleModule,
+} from '@typescript-eslint/utils/ts-eslint';
 
-import { InDescribeRuleOptions, defaultInDescribeRuleOptions, inDescribeRuleOptionsSchema } from './in-describe-options';
+import {
+  InDescribeRuleOptions,
+  defaultInDescribeRuleOptions,
+} from './in-describe-options';
 import { findCaptures, findDeclarator, hasCleanup } from '../utils/common';
 import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
 import {
@@ -22,7 +31,7 @@ type MessageIds =
 export type AssignmentInDescribeRuleOptions = InDescribeRuleOptions;
 
 type Context = Readonly<
-  TSESLint.RuleContext<MessageIds, Partial<AssignmentInDescribeRuleOptions>[]>
+  RuleContext<MessageIds, Partial<AssignmentInDescribeRuleOptions>[]>
 >;
 
 /**
@@ -40,7 +49,7 @@ type Context = Readonly<
  */
 function* fixMoveToBeforeAfter(
   context: Context,
-  fixer: TSESLint.RuleFixer,
+  fixer: RuleFixer,
   options: AssignmentInDescribeRuleOptions,
   node: TSESTree.AssignmentExpression,
   describe: TSESTree.CallExpression,
@@ -48,7 +57,7 @@ function* fixMoveToBeforeAfter(
   siblingAfters: TSESTree.CallExpression[],
   beforeName: string,
   afterName: string
-): IterableIterator<TSESLint.RuleFix> {
+): IterableIterator<RuleFix> {
   if (!isNameIdentifier(node.left)) return;
 
   const initialization = context.getSourceCode().getText(node) + ';';
@@ -64,11 +73,10 @@ function* fixMoveToBeforeAfter(
       initialization,
       (node) =>
         node.type === AST_NODE_TYPES.ExpressionStatement &&
-          node.expression.type === AST_NODE_TYPES.AssignmentExpression
+        node.expression.type === AST_NODE_TYPES.AssignmentExpression
           ? 'after'
           : undefined,
-      'after',
-      true
+      'after'
     );
   } else {
     yield* insertToCallLastFunctionArgument(
@@ -78,20 +86,19 @@ function* fixMoveToBeforeAfter(
       beforeName + '(() => { ' + initialization + ' });',
       (node) =>
         node.type === AST_NODE_TYPES.VariableDeclaration ||
-          (node.type === AST_NODE_TYPES.ExpressionStatement &&
-            (isCallExpressionWithName(
+        (node.type === AST_NODE_TYPES.ExpressionStatement &&
+          (isCallExpressionWithName(
+            node.expression,
+            options.initializationEachFunctionNames
+          ) ||
+            isCallExpressionWithName(
               node.expression,
-              options.initializationEachFunctionNames
+              options.initializationAllFunctionNames
             ) ||
-              isCallExpressionWithName(
-                node.expression,
-                options.initializationAllFunctionNames
-              ) ||
-              isNodeOfType(node.expression, AST_NODE_TYPES.AssignmentExpression)))
+            isNodeOfType(node.expression, AST_NODE_TYPES.AssignmentExpression)))
           ? 'after'
           : undefined,
-      'after',
-      true
+      'after'
     );
   }
 
@@ -103,8 +110,7 @@ function* fixMoveToBeforeAfter(
         siblingAfters[siblingAfters.length - 1],
         cleanup,
         undefined,
-        'after',
-        true
+        'after'
       );
     } else {
       yield* insertToCallLastFunctionArgument(
@@ -114,31 +120,30 @@ function* fixMoveToBeforeAfter(
         afterName + '(() => { ' + cleanup + ' });',
         (node) =>
           node.type === AST_NODE_TYPES.VariableDeclaration ||
-            (node.type === AST_NODE_TYPES.ExpressionStatement &&
-              (isCallExpressionWithName(
+          (node.type === AST_NODE_TYPES.ExpressionStatement &&
+            (isCallExpressionWithName(
+              node.expression,
+              options.initializationEachFunctionNames
+            ) ||
+              isCallExpressionWithName(
                 node.expression,
-                options.initializationEachFunctionNames
+                options.initializationAllFunctionNames
               ) ||
-                isCallExpressionWithName(
-                  node.expression,
-                  options.initializationAllFunctionNames
-                ) ||
-                isCallExpressionWithName(
-                  node.expression,
-                  options.unreferenceEachFunctionNames
-                ) ||
-                isCallExpressionWithName(
-                  node.expression,
-                  options.unreferenceAllFunctionNames
-                ) ||
-                isNodeOfType(
-                  node.expression,
-                  AST_NODE_TYPES.AssignmentExpression
-                )))
+              isCallExpressionWithName(
+                node.expression,
+                options.unreferenceEachFunctionNames
+              ) ||
+              isCallExpressionWithName(
+                node.expression,
+                options.unreferenceAllFunctionNames
+              ) ||
+              isNodeOfType(
+                node.expression,
+                AST_NODE_TYPES.AssignmentExpression
+              )))
             ? 'after'
             : undefined,
-        'after',
-        true
+        'after'
       );
     }
   }
@@ -150,7 +155,7 @@ function* fixMoveToBeforeAfter(
   );
 }
 
-export const assignmentInDescribeRule: TSESLint.RuleModule<
+export const assignmentInDescribeRule: RuleModule<
   MessageIds,
   Partial<AssignmentInDescribeRuleOptions>[]
 > = {
@@ -166,13 +171,43 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<
     },
     fixable: 'code',
     hasSuggestions: true,
-    schema: [inDescribeRuleOptionsSchema],
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          functionNames: { type: 'array', items: { type: 'string' } },
+          initializationEachFunctionNames: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          initializationAllFunctionNames: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          unreferenceEachFunctionNames: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          unreferenceAllFunctionNames: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          testFunctionNames: { type: 'array', items: { type: 'string' } },
+          preferAll: { type: 'boolean' },
+        },
+        additionalProperties: false,
+      },
+    ],
   },
   create: (context) => ({
     AssignmentExpression: (node): void => {
       if (!isNameIdentifier(node.left)) return;
 
-      const options = Object.assign({}, defaultInDescribeRuleOptions, context.options[0]);
+      const options = Object.assign(
+        {},
+        defaultInDescribeRuleOptions,
+        context.options[0]
+      );
 
       const name = node.left.name;
       const call = closestCallExpressionIfName(node, options.functionNames);
@@ -186,9 +221,9 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<
       const captures = [...findCaptures(declarator)];
       if (captures.length === 0) return;
 
-      const callCaptures = <TSESTree.CallExpression[]>captures
-        .map((m) => closestCallExpression(m))
-        .filter((e) => !!e);
+      const callCaptures = <TSESTree.CallExpression[]>(
+        captures.map((m) => closestCallExpression(m)).filter((e) => !!e)
+      );
 
       const closest = closestNodeOfTypes(node, [
         AST_NODE_TYPES.CallExpression,
@@ -201,8 +236,13 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<
           AST_NODE_TYPES.ExpressionStatement
         )
           .map((m) => m.expression)
-          .filter((f) =>
-            isCallExpressionWithName(f, options.unreferenceEachFunctionNames) || isCallExpressionWithName(f, options.unreferenceAllFunctionNames)
+          .filter(
+            (f) =>
+              isCallExpressionWithName(
+                f,
+                options.unreferenceEachFunctionNames
+              ) ||
+              isCallExpressionWithName(f, options.unreferenceAllFunctionNames)
           );
 
         if (
@@ -246,8 +286,19 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<
         const suggestions: ReportSuggestionArray<MessageIds> = [];
 
         // Try determine the after fn name based on the current before name
-        const captureBeforeEachName = callCaptures.find(call => isNameIdentifier(call.callee, options.initializationEachFunctionNames))?.callee['name'] ?? siblingBeforeEach[0]?.callee['name'];
-        const afterEachName = options.unreferenceEachFunctionNames[options.initializationEachFunctionNames.indexOf(captureBeforeEachName)];
+        const captureBeforeEachName =
+          callCaptures.find((call) =>
+            isNameIdentifier(
+              call.callee,
+              options.initializationEachFunctionNames
+            )
+          )?.callee['name'] ?? siblingBeforeEach[0]?.callee['name'];
+        const afterEachName =
+          options.unreferenceEachFunctionNames[
+            options.initializationEachFunctionNames.indexOf(
+              captureBeforeEachName
+            )
+          ];
 
         addXSuggestion(
           node,
@@ -258,12 +309,21 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<
           siblingBeforeEach,
           siblingAfterEach,
           captureBeforeEachName ?? options.initializationEachFunctionNames[0],
-          afterEachName ?? options.unreferenceEachFunctionNames[0],
+          afterEachName ?? options.unreferenceEachFunctionNames[0]
         );
 
         // Try determine the after fn name based on the current before name
-        const captureBeforeAllName = callCaptures.find(call => isNameIdentifier(call.callee, options.initializationAllFunctionNames))?.callee['name'] ?? siblingBeforeAll[0]?.callee['name'];
-        const afterAllName = options.unreferenceAllFunctionNames[options.initializationAllFunctionNames.indexOf(captureBeforeAllName)];
+        const captureBeforeAllName =
+          callCaptures.find((call) =>
+            isNameIdentifier(
+              call.callee,
+              options.initializationAllFunctionNames
+            )
+          )?.callee['name'] ?? siblingBeforeAll[0]?.callee['name'];
+        const afterAllName =
+          options.unreferenceAllFunctionNames[
+            options.initializationAllFunctionNames.indexOf(captureBeforeAllName)
+          ];
 
         addXSuggestion(
           node,
@@ -274,10 +334,17 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<
           siblingBeforeAll,
           siblingAfterAll,
           captureBeforeAllName ?? options.initializationAllFunctionNames[0],
-          afterAllName ?? options.unreferenceAllFunctionNames[0],
+          afterAllName ?? options.unreferenceAllFunctionNames[0]
         );
 
-        const isCapturedInAll = options.preferAll || callCaptures.some(call => isNameIdentifier(call.callee, options.initializationAllFunctionNames));
+        const isCapturedInAll =
+          options.preferAll ||
+          callCaptures.some((call) =>
+            isNameIdentifier(
+              call.callee,
+              options.initializationAllFunctionNames
+            )
+          );
 
         return context.report({
           node: node,
@@ -305,7 +372,7 @@ export const assignmentInDescribeRule: TSESLint.RuleModule<
  */
 function addXSuggestion(
   node: TSESTree.AssignmentExpression,
-  suggestions: TSESLint.ReportSuggestionArray<MessageIds>,
+  suggestions: ReportSuggestionArray<MessageIds>,
   context: Context,
   options: AssignmentInDescribeRuleOptions,
   // eslint-disable-next-line jsdoc/require-jsdoc

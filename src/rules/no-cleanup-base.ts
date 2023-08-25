@@ -1,6 +1,12 @@
 // Check if we are not cleaning up the data in afterX
-import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
-import { ReportSuggestionArray } from '@typescript-eslint/utils/dist/ts-eslint';
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
+import {
+  RuleContext,
+  RuleFixer,
+  RuleFix,
+  RuleModule,
+  ReportSuggestionArray,
+} from '@typescript-eslint/utils/ts-eslint';
 
 import { findDeclarator, getLastAssignment } from '../utils/common';
 import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
@@ -13,7 +19,7 @@ import {
   siblingNodesOfType,
 } from '../utils/node-utils';
 
-type MessageIds =
+export type MessageIds =
   | 'assignmentWithoutCleanup'
   | 'assignmentInCleanup'
   | 'assignmentInCleanupAdd'
@@ -21,14 +27,12 @@ type MessageIds =
 
 export type CleanupRuleOptions = {
   /** Names of the functions that can initialize values. */
-  initializationFunctionNames: string[],
+  initializationFunctionNames: string[];
   /** Names of the functions that can unreference values. */
-  unreferenceFunctionNames: string[],
+  unreferenceFunctionNames: string[];
 };
 
-type Context = Readonly<
-  TSESLint.RuleContext<MessageIds, Partial<CleanupRuleOptions>[]>
->;
+type Context = Readonly<RuleContext<MessageIds, Partial<CleanupRuleOptions>[]>>;
 
 /**
  * Fixes the declaration by add dereference to "afterX" calls.
@@ -42,12 +46,12 @@ type Context = Readonly<
  */
 function* fixToDereference(
   context: Context,
-  fixer: TSESLint.RuleFixer,
+  fixer: RuleFixer,
   cleanup: string,
   describe: TSESTree.CallExpression,
   after: TSESTree.CallExpression | undefined,
   dereferenceMethod: string
-): IterableIterator<TSESLint.RuleFix> {
+): IterableIterator<RuleFix> {
   if (after) {
     yield* insertToCallLastFunctionArgument(
       context,
@@ -65,11 +69,13 @@ function* fixToDereference(
       dereferenceMethod + '(() => { ' + cleanup + ' });',
       (node) =>
         node.type === AST_NODE_TYPES.VariableDeclaration ||
-          (node.type === AST_NODE_TYPES.ExpressionStatement &&
-            (isCallExpressionWithName(node.expression, 'beforeEach') ||
-              isCallExpressionWithName(node.expression, 'beforeAll') ||
-              isCallExpressionWithName(node.expression, 'afterEach') ||
-              isCallExpressionWithName(node.expression, 'afterAll'))) ? 'after' : undefined
+        (node.type === AST_NODE_TYPES.ExpressionStatement &&
+          (isCallExpressionWithName(node.expression, 'beforeEach') ||
+            isCallExpressionWithName(node.expression, 'beforeAll') ||
+            isCallExpressionWithName(node.expression, 'afterEach') ||
+            isCallExpressionWithName(node.expression, 'afterAll')))
+          ? 'after'
+          : undefined
     );
   }
 }
@@ -83,7 +89,7 @@ function* fixToDereference(
 export function createRule(
   defaultRuleOptions: CleanupRuleOptions,
   dereferenceInSameMethod: boolean
-): TSESLint.RuleModule<MessageIds, Partial<CleanupRuleOptions>[]> {
+): RuleModule<MessageIds, Partial<CleanupRuleOptions>[]> {
   return {
     defaultOptions: [],
     meta: {
@@ -91,21 +97,28 @@ export function createRule(
       messages: {
         assignmentWithoutCleanup:
           'There is assignment in "{{before}}" but no cleanup in "{{after}}".',
-        assignmentInCleanup:
-          'Last assignment is not a cleanup.',
+        assignmentInCleanup: 'Last assignment is not a cleanup.',
         assignmentInCleanupAdd: 'Add a cleanup assignment.',
         assignmentInCleanupReplace: 'Replace assignment to cleanup.',
       },
       fixable: 'code',
       hasSuggestions: true,
-      schema: [{
-        type: 'object',
-        properties: {
-          initializationFunctionNames: { type: 'array', items: { type: 'string' } },
-          unreferenceFunctionNames: { type: 'array', items: { type: 'string' } }
+      schema: [
+        {
+          type: 'object',
+          properties: {
+            initializationFunctionNames: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+            unreferenceFunctionNames: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+          },
+          additionalProperties: false,
         },
-        additionalProperties: false
-      }],
+      ],
     },
     create: (context) => ({
       AssignmentExpression: (node): void => {
@@ -115,8 +128,15 @@ export function createRule(
 
         const name = node.left.name;
 
-        const options = Object.assign({}, defaultRuleOptions, context.options[0]);
-        const call = closestCallExpressionIfName(node, options.initializationFunctionNames);
+        const options = Object.assign(
+          {},
+          defaultRuleOptions,
+          context.options[0]
+        );
+        const call = closestCallExpressionIfName(
+          node,
+          options.initializationFunctionNames
+        );
 
         if (!call) return;
 
@@ -129,7 +149,10 @@ export function createRule(
           call,
           AST_NODE_TYPES.ExpressionStatement,
           (n) =>
-            isCallExpressionWithName(n.expression, options.unreferenceFunctionNames) &&
+            isCallExpressionWithName(
+              n.expression,
+              options.unreferenceFunctionNames
+            ) &&
             n.expression.arguments.length > 0 &&
             n.expression.arguments[n.expression.arguments.length - 1]['body']
         ).map((m) => m.expression as TSESTree.CallExpression);
@@ -147,8 +170,7 @@ export function createRule(
             if (!dereferenceInSameMethod) {
               suggestions.push({
                 messageId: 'assignmentInCleanupReplace',
-                fix: (fixer) =>
-                  fixer.replaceText(child.right, ' = undefined;'),
+                fix: (fixer) => fixer.replaceText(child.right, ' = undefined;'),
               });
             }
 
@@ -189,13 +211,16 @@ export function createRule(
         const parent = closestCallExpression(call.parent);
         if (!parent) throw new Error('Missing parent call.');
 
-        const afterName = options.unreferenceFunctionNames[options.initializationFunctionNames.indexOf(call.callee.name)] ?? options.unreferenceFunctionNames[0];
+        const afterName =
+          options.unreferenceFunctionNames[
+            options.initializationFunctionNames.indexOf(call.callee.name)
+          ] ?? options.unreferenceFunctionNames[0];
 
         return context.report({
           messageId: 'assignmentWithoutCleanup',
           data: {
             before: call.callee.name,
-            after: afterName
+            after: afterName,
           },
           node: node,
           fix: (fixer) =>

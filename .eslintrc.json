@@ -28,7 +28,7 @@
     "samples"
   ],
   "plugins": [
-    "disable-autofix",
+    // "disable-autofix",
     // "prettier",
     "@typescript-eslint",
     "import",
@@ -116,15 +116,15 @@
       }
     ],
     "jsdoc/no-types": "off",
-    "disable-autofix/jsdoc/no-types": "warn",
+    // "disable-autofix/jsdoc/no-types": "warn",
     "jsdoc/require-description-complete-sentence": "off",
-    "disable-autofix/jsdoc/require-description-complete-sentence": [
-      "warn",
-      {
-        "tags": ["copyright", "returns"],
-        "abbreviations": ["e.g."]
-      }
-    ],
+    // "disable-autofix/jsdoc/require-description-complete-sentence": [
+    //   "warn",
+    //   {
+    //     "tags": ["copyright", "returns"],
+    //     "abbreviations": ["e.g."]
+    //   }
+    // ],
     "jsdoc/require-description": [
       "error",
       {

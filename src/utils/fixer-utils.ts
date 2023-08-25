@@ -1,4 +1,11 @@
-import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
+// import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
+
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
+import {
+  RuleContext,
+  RuleFixer,
+  RuleFix,
+} from '@typescript-eslint/utils/ts-eslint';
 
 import { CapturingNode, getCallFunctionBody } from './common';
 
@@ -10,21 +17,19 @@ import { CapturingNode, getCallFunctionBody } from './common';
  * @param content Content to prepend.
  * @param placementCheck Function to determine the placement relative to a node.
  * @param defaultPlacement Default placement.
- * @param fixOrderingOfAssignments Fix the ordering of assignments in the target block.
  * @yields Fixes for the insert.
  */
 export function* insertToCallLastFunctionArgument<
   MessageIds extends string,
-  Options
+  Options,
 >(
-  context: Readonly<TSESLint.RuleContext<MessageIds, Partial<Options>[]>>,
-  fixer: TSESLint.RuleFixer,
+  context: Readonly<RuleContext<MessageIds, Partial<Options>[]>>,
+  fixer: RuleFixer,
   node: TSESTree.CallExpression | CapturingNode,
   content: string,
   placementCheck?: (node: TSESTree.Node) => 'before' | 'after' | undefined,
-  defaultPlacement: 'before' | 'after' = 'after',
-  fixOrderingOfAssignments: boolean = false
-): IterableIterator<TSESLint.RuleFix> {
+  defaultPlacement: 'before' | 'after' = 'after'
+): IterableIterator<RuleFix> {
   const body = getCallFunctionBody(node);
 
   if (!body) return;
@@ -73,10 +78,6 @@ export function* insertToCallLastFunctionArgument<
               '\n' + content
             );
       }
-
-      // if (fixOrderingOfAssignments) {
-      //   yield* reorderAssignementStatementsIfUsageIsMixedUp(context, fixer, body);
-      // }
     }
   }
 }

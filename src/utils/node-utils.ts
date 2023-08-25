@@ -2,8 +2,8 @@ import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
 
 type NodeWithType<
   TNode extends TSESTree.Node,
-  TType extends AST_NODE_TYPES
-// eslint-disable-next-line jsdoc/require-jsdoc
+  TType extends AST_NODE_TYPES,
+  // eslint-disable-next-line jsdoc/require-jsdoc
 > = TNode & { type: TType };
 
 /**
@@ -14,7 +14,7 @@ type NodeWithType<
  */
 export function isNodeOfType<
   TNode extends TSESTree.Node,
-  TType extends AST_NODE_TYPES
+  TType extends AST_NODE_TYPES,
 >(node: TNode, type: TType): node is NodeWithType<TNode, TType> {
   return node.type === type;
 }
@@ -38,7 +38,7 @@ export function isCallExpression<T extends TSESTree.Node>(
  */
 export function isCallExpressionWithName<
   T extends TSESTree.Node,
-  TName extends string
+  TName extends string,
 >(
   node: T,
   name: TName | TName[]
@@ -103,14 +103,15 @@ export function siblingNodesOfType<TType extends AST_NODE_TYPES>(
   if (block.type !== AST_NODE_TYPES.BlockStatement) return [];
 
   return <NodeWithType<TSESTree.Node, TType>[]>(
-    block.body.filter((f) => f !== node && isNodeOfType(f, type) && (!filter || filter(f)))
+    block.body.filter(
+      (f) => f !== node && isNodeOfType(f, type) && (!filter || filter(f))
+    )
   );
 }
 
 /**
  * Returns the closest ancestor with the specified type.
  * @param node Node to test.
- * @param type Type to look for.
  * @param filter Filter the results.
  * @returns The closest node of type or undefined.
  */
@@ -127,7 +128,9 @@ export function siblingNodes(
   if (!block) return [];
   if (block.type !== AST_NODE_TYPES.BlockStatement) return [];
 
-  return filter ? block.body.filter((f) => f !== node && filter(f)) : block.body.filter((f) => f !== node);
+  return filter
+    ? block.body.filter((f) => f !== node && filter(f))
+    : block.body.filter((f) => f !== node);
 }
 
 /**
@@ -163,7 +166,7 @@ export function closestCallExpressionIfName<TName extends string>(
     typeof name === 'string' ? callee === name : name.some((s) => callee === s)
   )
     ? // eslint-disable-next-line jsdoc/require-jsdoc
-    <TSESTree.CallExpression & { callee: { name: TName } }>call
+      <TSESTree.CallExpression & { callee: { name: TName } }>call
     : undefined;
 }
 
@@ -234,7 +237,7 @@ export function isTruishAssignment(
  */
 export function isNameIdentifier<
   TNode extends TSESTree.Node,
-  TName extends string
+  TName extends string,
 >(
   node: TNode,
   name?: TName | TName[]
@@ -258,40 +261,40 @@ export function isNameIdentifier<
 export function isStatement<TNode extends TSESTree.Node>(
   node: TNode
 ): node is TNode &
-(
-  | TSESTree.BlockStatement
-  | TSESTree.BreakStatement
-  | TSESTree.ClassDeclarationWithName
-  | TSESTree.ContinueStatement
-  | TSESTree.DebuggerStatement
-  | TSESTree.DoWhileStatement
-  | TSESTree.ExportAllDeclaration
-  | TSESTree.ExportDefaultDeclaration
-  | TSESTree.ExportNamedDeclaration
-  | TSESTree.ExpressionStatement
-  | TSESTree.ForInStatement
-  | TSESTree.ForOfStatement
-  | TSESTree.ForStatement
-  | TSESTree.FunctionDeclarationWithName
-  | TSESTree.IfStatement
-  | TSESTree.ImportDeclaration
-  | TSESTree.LabeledStatement
-  | TSESTree.ReturnStatement
-  | TSESTree.SwitchStatement
-  | TSESTree.ThrowStatement
-  | TSESTree.TryStatement
-  | TSESTree.TSDeclareFunction
-  | TSESTree.TSEnumDeclaration
-  | TSESTree.TSExportAssignment
-  | TSESTree.TSImportEqualsDeclaration
-  | TSESTree.TSInterfaceDeclaration
-  | TSESTree.TSModuleDeclaration
-  | TSESTree.TSNamespaceExportDeclaration
-  | TSESTree.TSTypeAliasDeclaration
-  | TSESTree.VariableDeclaration
-  | TSESTree.WhileStatement
-  | TSESTree.WithStatement
-) {
+  (
+    | TSESTree.BlockStatement
+    | TSESTree.BreakStatement
+    | TSESTree.ClassDeclarationWithName
+    | TSESTree.ContinueStatement
+    | TSESTree.DebuggerStatement
+    | TSESTree.DoWhileStatement
+    | TSESTree.ExportAllDeclaration
+    | TSESTree.ExportDefaultDeclaration
+    | TSESTree.ExportNamedDeclaration
+    | TSESTree.ExpressionStatement
+    | TSESTree.ForInStatement
+    | TSESTree.ForOfStatement
+    | TSESTree.ForStatement
+    | TSESTree.FunctionDeclarationWithName
+    | TSESTree.IfStatement
+    | TSESTree.ImportDeclaration
+    | TSESTree.LabeledStatement
+    | TSESTree.ReturnStatement
+    | TSESTree.SwitchStatement
+    | TSESTree.ThrowStatement
+    | TSESTree.TryStatement
+    | TSESTree.TSDeclareFunction
+    | TSESTree.TSEnumDeclaration
+    | TSESTree.TSExportAssignment
+    | TSESTree.TSImportEqualsDeclaration
+    | TSESTree.TSInterfaceDeclaration
+    | TSESTree.TSModuleDeclaration
+    | TSESTree.TSNamespaceExportDeclaration
+    | TSESTree.TSTypeAliasDeclaration
+    | TSESTree.VariableDeclaration
+    | TSESTree.WhileStatement
+    | TSESTree.WithStatement
+  ) {
   switch (node.type) {
     case AST_NODE_TYPES.BlockStatement:
     case AST_NODE_TYPES.BreakStatement:

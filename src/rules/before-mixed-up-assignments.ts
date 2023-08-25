@@ -1,41 +1,37 @@
-import { AST_NODE_TYPES, TSESLint } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES } from '@typescript-eslint/utils';
+import { RuleModule } from '@typescript-eslint/utils/ts-eslint';
 
 import { defaultInDescribeRuleOptions } from './in-describe-options';
-import { getCallFunctionBody, isStatementsBasedOnAssignmentAndUsageMixedUp, reorderStatementsBasedOnAssignmentAndUsage } from '../utils/common';
 import {
-  isNameIdentifier,
-} from '../utils/node-utils';
+  getCallFunctionBody,
+  isStatementsBasedOnAssignmentAndUsageMixedUp,
+  reorderStatementsBasedOnAssignmentAndUsage,
+} from '../utils/common';
+import { isNameIdentifier } from '../utils/node-utils';
 
-type MessageIds =
-  | 'beforeMixedUpAssignement'
-  | 'beforeMixedUpAssignementReorder';
+type MessageIds = 'beforeMixedUpAssignment' | 'beforeMixedUpAssignmentReorder';
 
 export type BeforeMixedUpAssignmentRuleOptions = {
   /** Function names the rule is triggered. */
-  functionNames: string[]
+  functionNames: string[];
 };
 
-export const defaultBeforeMixedUpAssignmentOptions: BeforeMixedUpAssignmentRuleOptions = {
-  functionNames: ['beforeEach', 'beforeAll', 'before']
-};
+export const defaultBeforeMixedUpAssignmentOptions: BeforeMixedUpAssignmentRuleOptions =
+  {
+    functionNames: ['beforeEach', 'beforeAll', 'before'],
+  };
 
-export const defaultJasmineBeforeMixedUpAssignmentOptions: BeforeMixedUpAssignmentRuleOptions = {
-  functionNames: ['beforeEach', 'beforeAll']
-};
+export const defaultJasmineBeforeMixedUpAssignmentOptions: BeforeMixedUpAssignmentRuleOptions =
+  {
+    functionNames: ['beforeEach', 'beforeAll'],
+  };
 
-export const defaultMochaBeforeMixedUpAssignmentOptions: BeforeMixedUpAssignmentRuleOptions = {
-  functionNames: ['beforeEach', 'before']
-};
+export const defaultMochaBeforeMixedUpAssignmentOptions: BeforeMixedUpAssignmentRuleOptions =
+  {
+    functionNames: ['beforeEach', 'before'],
+  };
 
-const optionsSchema = {
-  type: 'object',
-  properties: {
-    functionNames: { type: 'array', items: { type: 'string' } },
-  },
-  additionalProperties: false
-};
-
-export const beforeMixedUpAssignmentRule: TSESLint.RuleModule<
+export const beforeMixedUpAssignmentRule: RuleModule<
   MessageIds,
   Partial<BeforeMixedUpAssignmentRuleOptions>[]
 > = {
@@ -43,12 +39,21 @@ export const beforeMixedUpAssignmentRule: TSESLint.RuleModule<
   meta: {
     type: 'suggestion',
     messages: {
-      beforeMixedUpAssignement: 'Assignements are not in the correct order.',
-      beforeMixedUpAssignementReorder: 'Reorder statements so assignment is before usage.',
+      beforeMixedUpAssignment: 'Assignments are not in the correct order.',
+      beforeMixedUpAssignmentReorder:
+        'Reorder statements so assignment is before usage.',
     },
     fixable: 'code',
     hasSuggestions: true,
-    schema: [optionsSchema],
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          functionNames: { type: 'array', items: { type: 'string' } },
+        },
+        additionalProperties: false,
+      },
+    ],
   },
   create: (context) => ({
     CallExpression: (node): void => {
@@ -67,15 +72,17 @@ export const beforeMixedUpAssignmentRule: TSESLint.RuleModule<
       if (!isStatementsBasedOnAssignmentAndUsageMixedUp(body)) return;
 
       return context.report({
-        messageId: 'beforeMixedUpAssignement',
+        messageId: 'beforeMixedUpAssignment',
         node: node,
-        fix: (fixer) => reorderStatementsBasedOnAssignmentAndUsage(context, fixer, body),
+        fix: (fixer) =>
+          reorderStatementsBasedOnAssignmentAndUsage(context, fixer, body),
         suggest: [
           {
-            messageId: 'beforeMixedUpAssignementReorder',
-            fix: (fixer) => reorderStatementsBasedOnAssignmentAndUsage(context, fixer, body),
-          }
-        ]
+            messageId: 'beforeMixedUpAssignmentReorder',
+            fix: (fixer) =>
+              reorderStatementsBasedOnAssignmentAndUsage(context, fixer, body),
+          },
+        ],
       });
     },
   }),

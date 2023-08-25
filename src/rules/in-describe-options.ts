@@ -44,23 +44,3 @@ export const defaultInDescribeRuleOptions = {
   testFunctionNames: ['it', 'test', 'fit', 'xit'],
   preferAll: false,
 };
-
-export const inDescribeRuleOptionsSchema = {
-  type: 'object',
-  properties: {
-    functionNames: { type: 'array', items: { type: 'string' } },
-    initializationEachFunctionNames: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-    initializationAllFunctionNames: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-    unreferenceEachFunctionNames: { type: 'array', items: { type: 'string' } },
-    unreferenceAllFunctionNames: { type: 'array', items: { type: 'string' } },
-    testFunctionNames: { type: 'array', items: { type: 'string' } },
-    preferAll: { type: 'boolean' },
-  },
-  additionalProperties: false,
-};

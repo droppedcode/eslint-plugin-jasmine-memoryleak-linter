@@ -1,6 +1,6 @@
 {
   "name": "@droppedcode/eslint-plugin-jasmine-memoryleak-linter",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "An ESLint extension to detect and fix Jasmine / Mocha related memory leaks.",
   "author": "droppedcode",
   "license": "MIT",
@@ -14,22 +14,24 @@
     "pack": "npm run build && npm pack"
   },
   "peerDependencies": {
-    "@typescript-eslint/utils": "^5.61.0"
+    "@typescript-eslint/utils": "^6.4.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.3",
-    "@typescript-eslint/eslint-plugin": "^5.61.0",
-    "@typescript-eslint/parser": "^5.61.0",
-    "eslint": "^8.44.0",
-    "eslint-config-prettier": "^8.8.0",
-    "eslint-import-resolver-typescript": "^3.5.5",
+    "@types/node": "^20.5.6",
+    "@typescript-eslint/eslint-plugin": "^6.4.1",
+    "@typescript-eslint/parser": "^6.4.1",
+    "@typescript-eslint/rule-tester": "^6.4.1",
+    "eslint": "^8.47.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-import-resolver-typescript": "^3.6.0",
     "eslint-plugin-disable-autofix": "^3.1.1",
-    "eslint-plugin-import": "^2.27.5",
-    "eslint-plugin-jsdoc": "^46.4.3",
-    "eslint-plugin-prettier": "^4.2.1",
-    "eslint-plugin-unused-imports": "^2.0.0",
+    "eslint-plugin-import": "^2.28.1",
+    "eslint-plugin-jsdoc": "^46.5.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-plugin-unused-imports": "^3.0.0",
     "jest": "^29.6.0",
-    "prettier": "^2.8.8",
+    "prettier": "^3.0.2",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
   },

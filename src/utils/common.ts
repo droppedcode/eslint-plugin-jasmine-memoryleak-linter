@@ -1,4 +1,9 @@
-import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
+import {
+  RuleContext,
+  RuleFixer,
+  RuleFix,
+} from '@typescript-eslint/utils/ts-eslint';
 
 import {
   closestNodeOfType,
@@ -160,7 +165,7 @@ type VariableDeclaratorWithIdentifier = TSESTree.VariableDeclarator & {
  * @param variable The VariableDeclarator.
  * @returns The root statements.
  */
-function getRootStatementsForVairableAnalysis(
+function getRootStatementsForVariableAnalysis(
   variable: TSESTree.VariableDeclarator
 ): TSESTree.Statement[] {
   if (!variable.parent)
@@ -176,14 +181,14 @@ function getRootStatementsForVairableAnalysis(
     // With var we need function scope
     variable.parent.kind === 'var'
       ? <
-      | TSESTree.ArrowFunctionExpression
-      | TSESTree.FunctionExpression
-      | TSESTree.Program
-      >closestNodeOfTypes(variable, [
-        AST_NODE_TYPES.ArrowFunctionExpression,
-        AST_NODE_TYPES.FunctionExpression,
-        AST_NODE_TYPES.Program,
-      ])
+          | TSESTree.ArrowFunctionExpression
+          | TSESTree.FunctionExpression
+          | TSESTree.Program
+        >closestNodeOfTypes(variable, [
+          AST_NODE_TYPES.ArrowFunctionExpression,
+          AST_NODE_TYPES.FunctionExpression,
+          AST_NODE_TYPES.Program,
+        ])
       : closestNodeOfType(variable, AST_NODE_TYPES.BlockStatement);
 
   if (!root) return [];
@@ -207,6 +212,9 @@ function getRootStatementsForVairableAnalysis(
     case AST_NODE_TYPES.BlockStatement:
       statements = root.body;
       break;
+    default:
+      statements = [];
+      break;
   }
 
   return statements;
@@ -222,7 +230,7 @@ export function* findCaptures(
 ): IterableIterator<CapturingNode> {
   if (variable.id.type !== AST_NODE_TYPES.Identifier) return;
 
-  for (const statement of getRootStatementsForVairableAnalysis(variable)) {
+  for (const statement of getRootStatementsForVariableAnalysis(variable)) {
     yield* findCapturesLookingForClosure(
       statement,
       <VariableDeclaratorWithIdentifier>variable,
@@ -251,7 +259,7 @@ export function* findUses(
 ): IterableIterator<TSESTree.Identifier> {
   if (variable.id.type !== AST_NODE_TYPES.Identifier) return;
 
-  for (const statement of getRootStatementsForVairableAnalysis(variable)) {
+  for (const statement of getRootStatementsForVariableAnalysis(variable)) {
     yield* findUsesOfVariable(
       statement,
       <VariableDeclaratorWithIdentifier>variable
@@ -273,9 +281,9 @@ export function isUsed(
 
   return parent
     ? !findUsesOfVariable(
-      parent,
-      <VariableDeclaratorWithIdentifier>variable
-    ).next().done
+        parent,
+        <VariableDeclaratorWithIdentifier>variable
+      ).next().done
     : !findUses(variable).next().done;
 }
 
@@ -494,11 +502,13 @@ export function applyParent(node: TSESTree.Node): void {
 }
 
 /**
- * Checks the assignement statements if the usages are mixed up.
+ * Checks the assignment statements if the usages are mixed up.
  * @param block The block statement to reorder.
  * @returns True if the statements are mixed up.
  */
-export function isStatementsBasedOnAssignmentAndUsageMixedUp(block: TSESTree.BlockStatement): boolean {
+export function isStatementsBasedOnAssignmentAndUsageMixedUp(
+  block: TSESTree.BlockStatement
+): boolean {
   const currentList = block.body;
   const newList: TSESTree.Statement[] = [];
   const declarators: Map<
@@ -538,7 +548,7 @@ export function isStatementsBasedOnAssignmentAndUsageMixedUp(block: TSESTree.Blo
 }
 
 /**
- * Reorders the assignement statements if the usages are mixed up.
+ * Reorders the assignment statements if the usages are mixed up.
  * @param context The rule context.
  * @param fixer The fixer used.
  * @param block The block statement to reorder.
@@ -547,13 +557,13 @@ export function isStatementsBasedOnAssignmentAndUsageMixedUp(block: TSESTree.Blo
  */
 export function* reorderStatementsBasedOnAssignmentAndUsage<
   TMessageIds extends string,
-  TOptions
+  TOptions,
 >(
-  context: Readonly<TSESLint.RuleContext<TMessageIds, Partial<TOptions>[]>>,
-  fixer: TSESLint.RuleFixer,
+  context: Readonly<RuleContext<TMessageIds, Partial<TOptions>[]>>,
+  fixer: RuleFixer,
   block: TSESTree.BlockStatement,
   ...additionalStatements: TSESTree.Statement[]
-): IterableIterator<TSESLint.RuleFix> {
+): IterableIterator<RuleFix> {
   let currentList = [...block.body, ...additionalStatements];
   let newList: TSESTree.Statement[] = [];
   const declarators: Map<

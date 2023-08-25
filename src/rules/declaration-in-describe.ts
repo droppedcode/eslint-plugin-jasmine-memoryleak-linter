@@ -1,7 +1,17 @@
-import { AST_NODE_TYPES, TSESLint, TSESTree } from '@typescript-eslint/utils';
-import { ReportSuggestionArray } from '@typescript-eslint/utils/dist/ts-eslint';
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
+import {
+  RuleContext,
+  RuleFixer,
+  RuleFix,
+  RuleModule,
+  ReportSuggestionArray,
+  ReportDescriptor,
+} from '@typescript-eslint/utils/ts-eslint';
 
-import { InDescribeRuleOptions, defaultInDescribeRuleOptions, inDescribeRuleOptionsSchema } from './in-describe-options';
+import {
+  InDescribeRuleOptions,
+  defaultInDescribeRuleOptions,
+} from './in-describe-options';
 import {
   CapturingNode,
   findCaptures,
@@ -33,11 +43,11 @@ type MessageIds =
 
 export type DeclarationInDescribeRuleOptions = InDescribeRuleOptions & {
   /** Allow auto fixing for init issues. */
-  forInit: boolean
+  forInit: boolean;
 };
 
 type Context = Readonly<
-  TSESLint.RuleContext<MessageIds, Partial<DeclarationInDescribeRuleOptions>[]>
+  RuleContext<MessageIds, Partial<DeclarationInDescribeRuleOptions>[]>
 >;
 
 /**
@@ -51,12 +61,12 @@ type DeclaratorMeta = {
   /** Describe nodes that captures the declarator. */
   describeCaptures: (
     | (TSESTree.CallExpression & {
-      // eslint-disable-next-line jsdoc/require-jsdoc
-      callee: {
         // eslint-disable-next-line jsdoc/require-jsdoc
-        name: string;
-      };
-    })
+        callee: {
+          // eslint-disable-next-line jsdoc/require-jsdoc
+          name: string;
+        };
+      })
     | undefined
   )[];
 };
@@ -73,12 +83,12 @@ type DeclaratorMeta = {
  */
 function* fixMoveTo(
   context: Context,
-  fixer: TSESLint.RuleFixer,
+  fixer: RuleFixer,
   node: TSESTree.VariableDeclaration,
   targets: (TSESTree.CallExpression | CapturingNode)[],
   declarators: TSESTree.VariableDeclarator[],
   atStart: boolean
-): IterableIterator<TSESLint.RuleFix> {
+): IterableIterator<RuleFix> {
   const declaration =
     node.kind +
     ' ' +
@@ -97,8 +107,7 @@ function* fixMoveTo(
 
         return undefined;
       },
-      atStart ? 'before' : 'after',
-      true
+      atStart ? 'before' : 'after'
     );
   }
 
@@ -125,7 +134,7 @@ function* fixMoveTo(
  */
 function* fixMoveToBeforeAfter(
   context: Context,
-  fixer: TSESLint.RuleFixer,
+  fixer: RuleFixer,
   options: DeclarationInDescribeRuleOptions,
   node: TSESTree.VariableDeclaration,
   describe: TSESTree.CallExpression,
@@ -134,32 +143,41 @@ function* fixMoveToBeforeAfter(
   beforeName: string,
   afterName: string,
   declarators: TSESTree.VariableDeclarator[]
-): IterableIterator<TSESLint.RuleFix> {
+): IterableIterator<RuleFix> {
   const alreadyAssigned: Set<TSESTree.Statement> = new Set();
 
   const initialization = node.declarations
     .filter((f) => f.init && 'name' in f.id && declarators.indexOf(f) !== -1)
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    .map(
-      (m) => {
-        const additionalNodes = siblingNodes(node, n => !alreadyAssigned.has(n)
-          && n.type === AST_NODE_TYPES.ExpressionStatement
-          && ((n.expression.type === AST_NODE_TYPES.AssignmentExpression && isUsed(m, n.expression.left)) || (n.expression.type === AST_NODE_TYPES.CallExpression && isUsed(m, n.expression.callee)))
-          && !!alreadyAssigned.add(n)
-        );
+    .map((m) => {
+      const additionalNodes = siblingNodes(
+        node,
+        (n) =>
+          !alreadyAssigned.has(n) &&
+          n.type === AST_NODE_TYPES.ExpressionStatement &&
+          ((n.expression.type === AST_NODE_TYPES.AssignmentExpression &&
+            isUsed(m, n.expression.left)) ||
+            (n.expression.type === AST_NODE_TYPES.CallExpression &&
+              isUsed(m, n.expression.callee))) &&
+          !!alreadyAssigned.add(n)
+      );
 
-        let content = m.id['name'] + ' = ' + context.getSourceCode().getText(m.init!) + ';';
-        if (additionalNodes.length > 0) {
-          content += '\n' + additionalNodes.map(n => context.getSourceCode().getText(n)).join('\n');
-        }
-
-        return <[TSESTree.VariableDeclarator, string]>[
-          m,
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          content,
-        ];
+      let content =
+        m.id['name'] + ' = ' + context.getSourceCode().getText(m.init!) + ';';
+      if (additionalNodes.length > 0) {
+        content +=
+          '\n' +
+          additionalNodes
+            .map((n) => context.getSourceCode().getText(n))
+            .join('\n');
       }
-    );
+
+      return <[TSESTree.VariableDeclarator, string]>[
+        m,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        content,
+      ];
+    });
 
   const cleanup = node.declarations
     .filter(
@@ -198,8 +216,7 @@ function* fixMoveToBeforeAfter(
 
           return undefined;
         },
-        'before',
-        true
+        'before'
       );
     }
   } else {
@@ -208,9 +225,9 @@ function* fixMoveToBeforeAfter(
       fixer,
       describe,
       beforeName +
-      '(() => { ' +
-      initialization.map((m) => m[1]).join('\n') +
-      ' });',
+        '(() => { ' +
+        initialization.map((m) => m[1]).join('\n') +
+        ' });',
       (node) => {
         if (node.type === AST_NODE_TYPES.VariableDeclaration) return 'after';
         if (
@@ -228,8 +245,7 @@ function* fixMoveToBeforeAfter(
 
         return undefined;
       },
-      'before',
-      true
+      'before'
     );
   }
 
@@ -241,8 +257,7 @@ function* fixMoveToBeforeAfter(
         siblingAfters[siblingAfters.length - 1],
         cleanup,
         undefined,
-        'after',
-        true
+        'after'
       );
     } else {
       yield* insertToCallLastFunctionArgument(
@@ -275,8 +290,7 @@ function* fixMoveToBeforeAfter(
 
           return undefined;
         },
-        'after',
-        true
+        'after'
       );
     }
   }
@@ -284,13 +298,13 @@ function* fixMoveToBeforeAfter(
   yield fixer.replaceText(
     node,
     (node.kind === 'const' ? 'let' : node.kind) +
-    ' ' +
-    node.declarations
-      .map((m) => getVariableBindingNameWithUndefined(context, m))
-      .join(', ') +
-    ';'
+      ' ' +
+      node.declarations
+        .map((m) => getVariableBindingNameWithUndefined(context, m))
+        .join(', ') +
+      ';'
   );
-  
+
   for (const already of alreadyAssigned) {
     yield fixer.remove(already);
   }
@@ -302,11 +316,21 @@ function* fixMoveToBeforeAfter(
  * @param declarator The original declarator.
  * @returns The declarator source.
  */
-function getVariableBindingNameWithUndefined(context: Context, declarator: TSESTree.VariableDeclarator): string {
-  if (!declarator.id.typeAnnotation
-    || declarator.id.typeAnnotation.typeAnnotation.type === AST_NODE_TYPES.TSUndefinedKeyword
-    || (declarator.id.typeAnnotation.typeAnnotation.type === AST_NODE_TYPES.TSUnionType && declarator.id.typeAnnotation.typeAnnotation.types.some(s => s.type === AST_NODE_TYPES.TSUndefinedKeyword))
-  ) return context.getSourceCode().getText(declarator.id);
+function getVariableBindingNameWithUndefined(
+  context: Context,
+  declarator: TSESTree.VariableDeclarator
+): string {
+  if (
+    !declarator.id.typeAnnotation ||
+    declarator.id.typeAnnotation.typeAnnotation.type ===
+      AST_NODE_TYPES.TSUndefinedKeyword ||
+    (declarator.id.typeAnnotation.typeAnnotation.type ===
+      AST_NODE_TYPES.TSUnionType &&
+      declarator.id.typeAnnotation.typeAnnotation.types.some(
+        (s) => s.type === AST_NODE_TYPES.TSUndefinedKeyword
+      ))
+  )
+    return context.getSourceCode().getText(declarator.id);
 
   return context.getSourceCode().getText(declarator.id) + ' | undefined';
 }
@@ -346,10 +370,10 @@ function allowedDeclarator(
  */
 function* fixInitMoveToDescribe(
   context: Context,
-  fixer: TSESLint.RuleFixer,
+  fixer: RuleFixer,
   declaration: TSESTree.VariableDeclaration,
   declarators: DeclaratorMeta[]
-): IterableIterator<TSESLint.RuleFix> {
+): IterableIterator<RuleFix> {
   for (const declarator of declarators) {
     yield* fixMoveTo(
       context,
@@ -372,20 +396,22 @@ function* fixInitMoveToDescribe(
  */
 function* fixInitMoveToFunction(
   context: Context,
-  fixer: TSESLint.RuleFixer,
+  fixer: RuleFixer,
   declaration: TSESTree.VariableDeclaration,
   declarators: DeclaratorMeta[]
-): IterableIterator<TSESLint.RuleFix> {
+): IterableIterator<RuleFix> {
   const creates = declarators
     .map((m) => {
       const name = m.declarator.id['name'] as string;
-      return `function create${name[0].toUpperCase() + name.substring(1)}()${m.declarator.id.typeAnnotation
-        ? context.getSourceCode().getText(m.declarator.id.typeAnnotation)
-        : ''
-        } { return ${m.declarator.init
+      return `function create${name[0].toUpperCase() + name.substring(1)}()${
+        m.declarator.id.typeAnnotation
+          ? context.getSourceCode().getText(m.declarator.id.typeAnnotation)
+          : ''
+      } { return ${
+        m.declarator.init
           ? context.getSourceCode().getText(m.declarator.init)
           : 'undefined'
-        }; }`;
+      }; }`;
     })
     .join('\n');
 
@@ -398,8 +424,9 @@ function* fixInitMoveToFunction(
 
   for (const meta of declarators) {
     const name = meta.declarator.id['name'] as string;
-    const init = `const ${name} = create${name[0].toUpperCase() + name.substring(1)
-      }();`;
+    const init = `const ${name} = create${
+      name[0].toUpperCase() + name.substring(1)
+    }();`;
 
     for (const capture of meta.captures) {
       yield* insertToCallLastFunctionArgument(
@@ -408,18 +435,14 @@ function* fixInitMoveToFunction(
         capture,
         init,
         undefined,
-        'before',
-        true
+        'before'
       );
     }
   }
 }
 
-const optionsSchema = JSON.parse(JSON.stringify(inDescribeRuleOptionsSchema));
-optionsSchema.properties.forInit = { type: 'boolean' };
-
 // TODO: add options to skip eg. const
-export const declarationInDescribeRule: TSESLint.RuleModule<
+export const declarationInDescribeRule: RuleModule<
   MessageIds,
   Partial<DeclarationInDescribeRuleOptions>[]
 > = {
@@ -443,7 +466,34 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
     },
     fixable: 'code',
     hasSuggestions: true,
-    schema: [optionsSchema],
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          functionNames: { type: 'array', items: { type: 'string' } },
+          initializationEachFunctionNames: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          initializationAllFunctionNames: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          unreferenceEachFunctionNames: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          unreferenceAllFunctionNames: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          testFunctionNames: { type: 'array', items: { type: 'string' } },
+          preferAll: { type: 'boolean' },
+          forInit: { type: 'boolean' },
+        },
+        additionalProperties: false,
+      },
+    ],
   },
   create: (context) => ({
     VariableDeclaration: (node): void => {
@@ -472,16 +522,17 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
 
       const declarators = node.declarations.map((declarator) => {
         const captures = [...findCaptures(declarator)];
-        const callCaptures = <TSESTree.CallExpression[]>captures
-          .map((m) => closestCallExpression(m))
-          .filter((e) => !!e);
+        const callCaptures = <TSESTree.CallExpression[]>(
+          captures.map((m) => closestCallExpression(m)).filter((e) => !!e)
+        );
 
         return {
           declarator,
           captures,
           callCaptures: callCaptures,
-          describeCaptures: callCaptures
-            .filter((e) => isNameIdentifier(e.callee, options.functionNames)),
+          describeCaptures: callCaptures.filter((e) =>
+            isNameIdentifier(e.callee, options.functionNames)
+          ),
         };
       });
 
@@ -529,7 +580,6 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
       );
 
       if (beforeFix.length > 0) {
-
         const siblingIts = <TSESTree.CallExpression[]>(
           siblingCalls.filter((f) =>
             isCallExpressionWithName(f, options.testFunctionNames)
@@ -547,7 +597,7 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
         if (siblingIts.length === 1) {
           suggestions.push({
             messageId: 'declarationInDescribeIt',
-            fix: (fixer): IterableIterator<TSESLint.RuleFix> =>
+            fix: (fixer): IterableIterator<RuleFix> =>
               fixMoveTo(
                 context,
                 fixer,
@@ -573,8 +623,21 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
         }
 
         // Try determine the after fn name based on the current before name
-        const captureBeforeEachName = declarators.flatMap(f => f.callCaptures).find(call => isNameIdentifier(call.callee, options.initializationEachFunctionNames))?.callee['name'] ?? siblingBeforeEach[0]?.callee['name'];
-        const afterEachName = options.unreferenceEachFunctionNames[options.initializationEachFunctionNames.indexOf(captureBeforeEachName)];
+        const captureBeforeEachName =
+          declarators
+            .flatMap((f) => f.callCaptures)
+            .find((call) =>
+              isNameIdentifier(
+                call.callee,
+                options.initializationEachFunctionNames
+              )
+            )?.callee['name'] ?? siblingBeforeEach[0]?.callee['name'];
+        const afterEachName =
+          options.unreferenceEachFunctionNames[
+            options.initializationEachFunctionNames.indexOf(
+              captureBeforeEachName
+            )
+          ];
 
         addXSuggestion(
           node,
@@ -590,8 +653,19 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
         );
 
         // Try determine the after fn name based on the current before name
-        const captureBeforeAllName = declarators.flatMap(f => f.callCaptures).find(call => isNameIdentifier(call.callee, options.initializationAllFunctionNames))?.callee['name'] ?? siblingBeforeAll[0]?.callee['name'];
-        const afterAllName = options.unreferenceAllFunctionNames[options.initializationAllFunctionNames.indexOf(captureBeforeAllName)];
+        const captureBeforeAllName =
+          declarators
+            .flatMap((f) => f.callCaptures)
+            .find((call) =>
+              isNameIdentifier(
+                call.callee,
+                options.initializationAllFunctionNames
+              )
+            )?.callee['name'] ?? siblingBeforeAll[0]?.callee['name'];
+        const afterAllName =
+          options.unreferenceAllFunctionNames[
+            options.initializationAllFunctionNames.indexOf(captureBeforeAllName)
+          ];
 
         addXSuggestion(
           node,
@@ -606,9 +680,18 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
           fixDeclarators
         );
 
-        const isCapturedInAll = options.preferAll || declarators.some(declarator => declarator.callCaptures.some(call => isNameIdentifier(call.callee, options.initializationAllFunctionNames)));
+        const isCapturedInAll =
+          options.preferAll ||
+          declarators.some((declarator) =>
+            declarator.callCaptures.some((call) =>
+              isNameIdentifier(
+                call.callee,
+                options.initializationAllFunctionNames
+              )
+            )
+          );
 
-        const report: TSESLint.ReportDescriptor<MessageIds> = {
+        const report: ReportDescriptor<MessageIds> = {
           node: node,
           messageId: 'declarationInDescribe',
           suggest: suggestions,
@@ -618,26 +701,40 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
 
         return context.report(report);
       } else if (describeFix.length > 0) {
-        const suggestions: ReportSuggestionArray<MessageIds> = [{
-          messageId: 'declarationInDescribeForInitMove',
-          fix: (fixer) =>
-            fixInitMoveToDescribe(context, fixer, node, describeFix),
-        },
-        {
-          messageId: 'declarationInDescribeForInitUseFunction',
-          fix: (fixer) =>
-            fixInitMoveToFunction(context, fixer, node, describeFix),
-        }];
+        const suggestions: ReportSuggestionArray<MessageIds> = [
+          {
+            messageId: 'declarationInDescribeForInitMove',
+            fix: (fixer) =>
+              fixInitMoveToDescribe(context, fixer, node, describeFix),
+          },
+          {
+            messageId: 'declarationInDescribeForInitUseFunction',
+            fix: (fixer) =>
+              fixInitMoveToFunction(context, fixer, node, describeFix),
+          },
+        ];
 
-        fixDeclarators = declarators
-          .map((m) => m.declarator);
+        fixDeclarators = declarators.map((m) => m.declarator);
         fixDeclarators = fixDeclarators.filter(
           (f) => !hasCleanup(siblingAfterAll, f.id['name'])
         );
 
         // Try determine the after fn name based on the current before name
-        const captureBeforeEachName = declarators.flatMap(f => f.callCaptures).find(call => isNameIdentifier(call.callee, options.initializationEachFunctionNames))?.callee['name'] ?? siblingBeforeEach[0]?.callee['name'];
-        const afterEachName = options.unreferenceEachFunctionNames[options.initializationEachFunctionNames.indexOf(captureBeforeEachName)];
+        const captureBeforeEachName =
+          declarators
+            .flatMap((f) => f.callCaptures)
+            .find((call) =>
+              isNameIdentifier(
+                call.callee,
+                options.initializationEachFunctionNames
+              )
+            )?.callee['name'] ?? siblingBeforeEach[0]?.callee['name'];
+        const afterEachName =
+          options.unreferenceEachFunctionNames[
+            options.initializationEachFunctionNames.indexOf(
+              captureBeforeEachName
+            )
+          ];
 
         addXSuggestion(
           node,
@@ -653,8 +750,19 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
         );
 
         // Try determine the after fn name based on the current before name
-        const captureBeforeAllName = declarators.flatMap(f => f.callCaptures).find(call => isNameIdentifier(call.callee, options.initializationAllFunctionNames))?.callee['name'] ?? siblingBeforeAll[0]?.callee['name'];
-        const afterAllName = options.unreferenceAllFunctionNames[options.initializationAllFunctionNames.indexOf(captureBeforeAllName)];
+        const captureBeforeAllName =
+          declarators
+            .flatMap((f) => f.callCaptures)
+            .find((call) =>
+              isNameIdentifier(
+                call.callee,
+                options.initializationAllFunctionNames
+              )
+            )?.callee['name'] ?? siblingBeforeAll[0]?.callee['name'];
+        const afterAllName =
+          options.unreferenceAllFunctionNames[
+            options.initializationAllFunctionNames.indexOf(captureBeforeAllName)
+          ];
 
         addXSuggestion(
           node,
@@ -672,15 +780,19 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
         return context.report({
           node: node,
           messageId: 'declarationInDescribeForInit',
-          fix: options.preferAll ? suggestions[suggestions.length - 1].fix : (options.forInit ? function* (fixer): IterableIterator<TSESLint.RuleFix> {
-            for (const meta of describeFix) {
-              if (meta.captures.length > 1) {
-                yield* fixInitMoveToFunction(context, fixer, node, [meta]);
-              } else {
-                yield* fixInitMoveToDescribe(context, fixer, node, [meta]);
+          fix: options.preferAll
+            ? suggestions[suggestions.length - 1].fix
+            : options.forInit
+            ? function* (fixer): IterableIterator<RuleFix> {
+                for (const meta of describeFix) {
+                  if (meta.captures.length > 1) {
+                    yield* fixInitMoveToFunction(context, fixer, node, [meta]);
+                  } else {
+                    yield* fixInitMoveToDescribe(context, fixer, node, [meta]);
+                  }
+                }
               }
-            }
-          } : undefined),
+            : undefined,
           suggest: suggestions,
         });
       }
@@ -703,7 +815,7 @@ export const declarationInDescribeRule: TSESLint.RuleModule<
  */
 function addXSuggestion(
   node: TSESTree.VariableDeclaration,
-  suggestions: TSESLint.ReportSuggestionArray<MessageIds>,
+  suggestions: ReportSuggestionArray<MessageIds>,
   context: Context,
   options: DeclarationInDescribeRuleOptions,
   // eslint-disable-next-line jsdoc/require-jsdoc
