@@ -129,5 +129,43 @@ a = undefined;
         },
       ],
     },
+    {
+      code: `
+describe('no-cleanup', () => {
+  var a;
+  beforeEach(fn(() => {
+    a = {};
+  }));
+});
+`,
+      output: `
+describe('no-cleanup', () => {
+  var a;
+  beforeEach(fn(() => {
+    a = {};
+  }));
+afterEach(() => { a = undefined; });
+});
+`,
+      errors: [
+        {
+          messageId: 'assignmentWithoutCleanup',
+          suggestions: [
+            {
+              messageId: 'assignmentInCleanupAdd',
+              output: `
+describe('no-cleanup', () => {
+  var a;
+  beforeEach(fn(() => {
+    a = {};
+  }));
+afterEach(() => { a = undefined; });
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
   ],
 });

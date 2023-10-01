@@ -146,7 +146,7 @@ export function closestCallExpression(
 }
 
 /**
- * Returns the closest CallExpression ancestor if it has the specified name.
+ * Returns the closest CallExpression if it has the specified name.
  * @param node Node to test.
  * @param name Name of the callee.
  * @returns The closest node of type or undefined.
@@ -168,6 +168,33 @@ export function closestCallExpressionIfName<TName extends string>(
     ? // eslint-disable-next-line jsdoc/require-jsdoc
       <TSESTree.CallExpression & { callee: { name: TName } }>call
     : undefined;
+}
+
+/**
+ * Returns the closest CallExpression ancestor if it has the specified name.
+ * @param node Node to test.
+ * @param name Name of the callee.
+ * @returns The closest node of type or undefined.
+ */
+export function ancestorCallExpressionIfName<TName extends string>(
+  node: TSESTree.Node,
+  name: TName | TName[]
+  // eslint-disable-next-line jsdoc/require-jsdoc
+): (TSESTree.CallExpression & { callee: { name: TName } }) | undefined {
+  const call = closestNodeOfType(node, AST_NODE_TYPES.CallExpression);
+  if (!call) return;
+  if (!isNameIdentifier(call.callee)) {
+    return ancestorCallExpressionIfName(call.parent, name);
+  }
+
+  const callee = call.callee.name;
+
+  return (
+    typeof name === 'string' ? callee === name : name.some((s) => callee === s)
+  )
+    ? // eslint-disable-next-line jsdoc/require-jsdoc
+      <TSESTree.CallExpression & { callee: { name: TName } }>call
+    : ancestorCallExpressionIfName(call.parent, name);
 }
 
 /**

@@ -11,8 +11,8 @@ import {
 import { findDeclarator, getLastAssignment } from '../utils/common';
 import { insertToCallLastFunctionArgument } from '../utils/fixer-utils';
 import {
+  ancestorCallExpressionIfName,
   closestCallExpression,
-  closestCallExpressionIfName,
   isCallExpressionWithName,
   isNameIdentifier,
   isTruishAssignment,
@@ -133,7 +133,7 @@ export function createRule(
           defaultRuleOptions,
           context.options[0]
         );
-        const call = closestCallExpressionIfName(
+        const call = ancestorCallExpressionIfName(
           node,
           options.initializationFunctionNames
         );
