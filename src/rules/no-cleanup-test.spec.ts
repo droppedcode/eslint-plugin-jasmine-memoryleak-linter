@@ -73,5 +73,81 @@ a = undefined;
         },
       ],
     },
+    {
+      code: `
+describe('no-cleanup', () => {
+  var a: object | undefined;
+  it(() => {
+    a = {};
+  });
+});
+`,
+      output: `
+describe('no-cleanup', () => {
+  var a: object | undefined;
+  it(() => {
+    a = {};
+a = undefined;
+  });
+});
+`,
+      errors: [
+        {
+          messageId: 'assignmentInCleanup',
+          suggestions: [
+            {
+              messageId: 'assignmentInCleanupAdd',
+              output: `
+describe('no-cleanup', () => {
+  var a: object | undefined;
+  it(() => {
+    a = {};
+a = undefined;
+  });
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      code: `
+describe('no-cleanup', () => {
+  var a: object;
+  it(() => {
+    a = {};
+  });
+});
+`,
+      output: `
+describe('no-cleanup', () => {
+  var a: object;
+  it(() => {
+    a = {};
+a = undefined!;
+  });
+});
+`,
+      errors: [
+        {
+          messageId: 'assignmentInCleanup',
+          suggestions: [
+            {
+              messageId: 'assignmentInCleanupAdd',
+              output: `
+describe('no-cleanup', () => {
+  var a: object;
+  it(() => {
+    a = {};
+a = undefined!;
+  });
+});
+`,
+            },
+          ],
+        },
+      ],
+    },
   ],
 });

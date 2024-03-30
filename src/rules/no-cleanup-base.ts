@@ -145,6 +145,12 @@ export function createRule(
         // Local declaration
         if (findDeclarator(name, node, (n) => n === call)) return;
 
+        const declaration = findDeclarator(name, node);
+        const useExclamation =
+          !!declaration &&
+          declaration.id.typeAnnotation?.typeAnnotation &&
+          !hasUndefinedType(declaration.id.typeAnnotation.typeAnnotation);
+
         const dereferenceSiblings = siblingNodesOfType(
           call,
           AST_NODE_TYPES.ExpressionStatement,
@@ -163,6 +169,8 @@ export function createRule(
 
         const child = getLastAssignment(dereferenceSiblings, name);
 
+        const unref = useExclamation ? ' = undefined!;' : ' = undefined;';
+
         if (child) {
           if (isTruishAssignment(child)) {
             const suggestions: ReportSuggestionArray<MessageIds> = [];
@@ -170,7 +178,7 @@ export function createRule(
             if (!dereferenceInSameMethod) {
               suggestions.push({
                 messageId: 'assignmentInCleanupReplace',
-                fix: (fixer) => fixer.replaceText(child.right, ' = undefined;'),
+                fix: (fixer) => fixer.replaceText(child.right, unref),
               });
             }
 
@@ -181,7 +189,7 @@ export function createRule(
                   context,
                   fixer,
                   dereferenceSiblings[dereferenceSiblings.length - 1],
-                  name + ' = undefined;',
+                  name + unref,
                   undefined,
                   'after'
                 ) ?? fixer.insertTextAfter(child, ''),
@@ -195,7 +203,7 @@ export function createRule(
                   context,
                   fixer,
                   dereferenceSiblings[dereferenceSiblings.length - 1],
-                  name + ' = undefined;',
+                  name + unref,
                   undefined,
                   'after'
                 ) ?? fixer.insertTextAfter(child, ''),
@@ -227,7 +235,7 @@ export function createRule(
             fixToDereference(
               context,
               fixer,
-              name + ' = undefined;',
+              name + unref,
               parent,
               dereferenceSiblings[dereferenceSiblings.length - 1],
               afterName
@@ -239,7 +247,7 @@ export function createRule(
                 fixToDereference(
                   context,
                   fixer,
-                  name + ' = undefined;',
+                  name + unref,
                   parent,
                   dereferenceSiblings[dereferenceSiblings.length - 1],
                   afterName
@@ -250,4 +258,21 @@ export function createRule(
       },
     }),
   };
+}
+
+/**
+ * Checks if a type annotation contains undefined as an option.
+ * Does not follow type declarations.
+ * @param typeAnnotation Annotation to check.
+ * @returns True if it contains undefined.
+ */
+function hasUndefinedType(typeAnnotation: TSESTree.TypeNode): boolean {
+  return (
+    typeAnnotation.type === AST_NODE_TYPES.TSUndefinedKeyword ||
+    typeAnnotation.type === AST_NODE_TYPES.TSAnyKeyword ||
+    (typeAnnotation.type === AST_NODE_TYPES.TSUnionType &&
+      typeAnnotation.types.some(
+        (s) => s.type === AST_NODE_TYPES.TSUndefinedKeyword
+      ))
+  );
 }
