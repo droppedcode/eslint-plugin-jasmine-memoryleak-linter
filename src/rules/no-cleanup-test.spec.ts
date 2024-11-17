@@ -2,9 +2,7 @@ import { RuleTester } from '@typescript-eslint/rule-tester';
 
 import { noCleanupTestRule } from './no-cleanup-test';
 
-const ruleTester = new RuleTester({
-  parser: '@typescript-eslint/parser',
-});
+const ruleTester = new RuleTester();
 
 ruleTester.run('no-cleanup, ', noCleanupTestRule, {
   valid: [
@@ -37,7 +35,7 @@ describe('no-cleanup-ok-local', () => {
   invalid: [
     {
       code: `
-describe('no-cleanup', () => {
+describe('no-cleanup-1', () => {
   var a;
   it(() => {
     a = {};
@@ -45,7 +43,7 @@ describe('no-cleanup', () => {
 });
 `,
       output: `
-describe('no-cleanup', () => {
+describe('no-cleanup-1', () => {
   var a;
   it(() => {
     a = {};
@@ -60,7 +58,7 @@ a = undefined;
             {
               messageId: 'assignmentInCleanupAdd',
               output: `
-describe('no-cleanup', () => {
+describe('no-cleanup-1', () => {
   var a;
   it(() => {
     a = {};
@@ -75,7 +73,7 @@ a = undefined;
     },
     {
       code: `
-describe('no-cleanup', () => {
+describe('no-cleanup-2', () => {
   var a: object | undefined;
   it(() => {
     a = {};
@@ -83,7 +81,7 @@ describe('no-cleanup', () => {
 });
 `,
       output: `
-describe('no-cleanup', () => {
+describe('no-cleanup-2', () => {
   var a: object | undefined;
   it(() => {
     a = {};
@@ -98,7 +96,7 @@ a = undefined;
             {
               messageId: 'assignmentInCleanupAdd',
               output: `
-describe('no-cleanup', () => {
+describe('no-cleanup-2', () => {
   var a: object | undefined;
   it(() => {
     a = {};
@@ -113,7 +111,7 @@ a = undefined;
     },
     {
       code: `
-describe('no-cleanup', () => {
+describe('no-cleanup-3', () => {
   var a: object;
   it(() => {
     a = {};
@@ -121,7 +119,7 @@ describe('no-cleanup', () => {
 });
 `,
       output: `
-describe('no-cleanup', () => {
+describe('no-cleanup-3', () => {
   var a: object;
   it(() => {
     a = {};
@@ -136,7 +134,7 @@ a = undefined!;
             {
               messageId: 'assignmentInCleanupAdd',
               output: `
-describe('no-cleanup', () => {
+describe('no-cleanup-3', () => {
   var a: object;
   it(() => {
     a = {};

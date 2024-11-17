@@ -249,7 +249,9 @@ export function isTruishAssignment(
   switch (node.right.type) {
     case AST_NODE_TYPES.Identifier:
       return node.right.name !== 'undefined';
-    case AST_NODE_TYPES.Literal:
+    case AST_NODE_TYPES.TSNonNullExpression:
+      return node.right.expression.type !== AST_NODE_TYPES.Identifier || node.right.expression.name !== 'undefined';
+      case AST_NODE_TYPES.Literal:
       return !!node.right.value;
     default:
       return true;

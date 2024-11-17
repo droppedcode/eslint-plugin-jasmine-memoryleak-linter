@@ -6,12 +6,14 @@ import {
   RuleModule,
   ReportSuggestionArray,
   ReportDescriptor,
+  RuleListener,
 } from '@typescript-eslint/utils/ts-eslint';
 
 import {
   InDescribeRuleOptions,
   defaultInDescribeRuleOptions,
 } from './in-describe-options';
+import { RuleOptions } from './options';
 import {
   CapturingNode,
   findCaptures,
@@ -46,9 +48,7 @@ export type DeclarationInDescribeRuleOptions = InDescribeRuleOptions & {
   forInit: boolean;
 };
 
-type Context = Readonly<
-  RuleContext<MessageIds, Partial<DeclarationInDescribeRuleOptions>[]>
->;
+type Context = Readonly<RuleContext<MessageIds, Partial<RuleOptions>[]>>;
 
 /**
  * Information about a declarator.
@@ -343,7 +343,7 @@ function getVariableBindingNameWithUndefined(
  */
 function allowedDeclarator(
   declarator: TSESTree.VariableDeclarator,
-  kind: 'const' | 'let' | 'var'
+  kind: 'const' | 'let' | 'var' | 'using' | 'await using'
 ): boolean {
   // No init
   if (!declarator.init) return true;
@@ -442,10 +442,7 @@ function* fixInitMoveToFunction(
 }
 
 // TODO: add options to skip eg. const
-export const declarationInDescribeRule: RuleModule<
-  MessageIds,
-  Partial<DeclarationInDescribeRuleOptions>[]
-> = {
+export const declarationInDescribeRule: RuleModule<MessageIds, Partial<RuleOptions>[], RuleListener> = {
   defaultOptions: [],
   meta: {
     type: 'suggestion',

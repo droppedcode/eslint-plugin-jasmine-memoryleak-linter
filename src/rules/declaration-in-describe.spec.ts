@@ -2,9 +2,7 @@ import { RuleTester } from '@typescript-eslint/rule-tester';
 
 import { declarationInDescribeRule } from './declaration-in-describe';
 
-const ruleTester = new RuleTester({
-  parser: '@typescript-eslint/parser',
-});
+const ruleTester = new RuleTester();
 
 ruleTester.run('declaration-in-describe', declarationInDescribeRule, {
   valid: [
@@ -182,7 +180,7 @@ describe('test-describe-many-declaration', () => {
   call(() => a + b);
 });
 `,
-      output: `
+      output: [`
 describe('test-describe-many-declaration', () => {
   var a;
   var b = {};
@@ -190,7 +188,17 @@ beforeEach(() => { a = {}; });
 afterEach(() => { a = undefined; });
   call(() => a + b);
 });
-`,
+`,`
+describe('test-describe-many-declaration', () => {
+  var a;
+  var b;
+beforeEach(() => { b = {};
+a = {}; });
+afterEach(() => { a = undefined;
+b = undefined; });
+  call(() => a + b);
+});
+`],
       errors: [
         {
           messageId: 'declarationInDescribe',

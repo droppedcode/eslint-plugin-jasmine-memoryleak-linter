@@ -28,10 +28,15 @@ export const rules: {
   [name: string]: RuleModule<string, unknown[], RuleListener>;
 } = {
   'declaration-in-describe': declarationInDescribeRule,
+  // @ts-expect-error TODO: Fix later
   'assignment-in-describe': assignmentInDescribeRule,
+  // @ts-expect-error TODO: Fix later
   'no-cleanup-test': noCleanupTestRule,
+  // @ts-expect-error TODO: Fix later
   'no-cleanup-before-each': noCleanupBeforeEachRule,
+  // @ts-expect-error TODO: Fix later
   'no-cleanup-before-all': noCleanupBeforeAllRule,
+  // @ts-expect-error TODO: Fix later
   'before-mixed-up-assignment': beforeMixedUpAssignmentRule,
 };
 

@@ -2,9 +2,7 @@ import { RuleTester } from '@typescript-eslint/rule-tester';
 
 import { assignmentInDescribeRule } from './assignment-in-describe';
 
-const ruleTester = new RuleTester({
-  parser: '@typescript-eslint/parser',
-});
+const ruleTester = new RuleTester();
 
 ruleTester.run('assignment-in-describe', assignmentInDescribeRule, {
   valid: [
